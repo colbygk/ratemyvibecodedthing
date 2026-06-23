@@ -1,0 +1,23 @@
+name = "rmvct-api"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+
+# Public site origin allowed for CORS (override per-env as needed).
+[vars]
+ALLOWED_ORIGIN = "https://ratemyvibecodedthing.ai"
+
+# ---- Cloudflare R2 bucket for user-uploaded images/video ----
+# Create with: wrangler r2 bucket create rmvct-media
+[[r2_buckets]]
+binding = "MEDIA"
+bucket_name = "rmvct-media"
+
+# ---- Secrets (set via `wrangler secret put <NAME>`; do NOT commit) ----
+#   UPSTASH_REDIS_REST_URL    e.g. https://xxxx.upstash.io
+#   UPSTASH_REDIS_REST_TOKEN  Upstash REST token
+#   JWT_SECRET                long random string for signing sessions
+#
+# Custom domain route (set up in Cloudflare dashboard or here):
+# [[routes]]
+# pattern = "api.ratemyvibecodedthing.ai"
+# custom_domain = true

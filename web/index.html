@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Rate My Vibe Coded Thing — a library of AI-built projects</title>
+  <meta name="description" content="A library shelf of vibe-coded projects. Submit your AI-built thing, browse the shelves, and rate what others have made." />
+
+  <!-- Fonts: Fraunces (display serif) · Space Grotesk (UI) · Space Mono (technical) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&family=Space+Grotesk:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <!-- faint circuit traces with travelling light pulses -->
+  <canvas id="circuits" aria-hidden="true"></canvas>
+
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="Rate My Vibe Coded Thing home">
+      ratemyvibecodedthing<span class="tld">.ai</span>
+      <span class="tag">// a library of vibe-coded things</span>
+    </a>
+    <nav class="header-actions" id="header-actions">
+      <!-- populated by auth.js depending on session -->
+    </nav>
+  </header>
+
+  <main class="library">
+    <div class="library-intro">
+      <h1>The shelf of <em>vibe-coded</em> things.</h1>
+      <p>Hundreds of projects, conjured by prompt and intuition. Pull one off the shelf, open it, and rate the vibes.</p>
+    </div>
+    <div id="shelves"><!-- shelves rendered by shelf.js --></div>
+  </main>
+
+  <!-- opened book -->
+  <div class="book-overlay" id="book-overlay" role="dialog" aria-modal="true" aria-label="Project details"></div>
+
+  <!-- auth / submit modal -->
+  <div class="modal-overlay" id="modal-overlay" role="dialog" aria-modal="true"></div>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,66 @@
+/* ============================================================
+   Design tokens — "AI Editorial Library"
+   Style: minimalism (per ui-ux-pro-max), editorial typography,
+   dark ink ground, restrained electric-circuit accent.
+   ============================================================ */
+
+:root {
+  /* ---- Type families ----
+     Fraunces  : characterful display serif → book spines & headings (editorial, awwwards feel)
+     Space Grotesk : clean grotesk → UI / body
+     Space Mono : technical accent → labels, circuit/AI cues, metadata */
+  --font-display: "Fraunces", "Times New Roman", serif;
+  --font-ui: "Space Grotesk", system-ui, -apple-system, sans-serif;
+  --font-mono: "Space Mono", ui-monospace, "SF Mono", monospace;
+
+  /* ---- Core palette: warm near-black "ink" ground ---- */
+  --ink-900: #08090d;   /* deepest background */
+  --ink-800: #0b0d12;   /* page background */
+  --ink-700: #11141b;   /* raised surfaces */
+  --ink-600: #1a1e27;   /* borders / shelf */
+  --ink-500: #2a2f3a;
+
+  /* ---- Paper (open-book pages) ---- */
+  --paper: #f3ece0;
+  --paper-shadow: #d9cfbd;
+  --paper-ink: #1b1814;
+  --paper-ink-soft: #5c554a;
+
+  /* ---- Text on dark ---- */
+  --text: #ece8e0;
+  --text-soft: #9aa0ac;
+  --text-faint: #5b616d;
+
+  /* ---- Electric accent (AI / circuit tracers) ---- */
+  --accent: #4ee6c8;        /* primary teal-cyan glow */
+  --accent-dim: #2a8d7e;
+  --accent-warm: #e8b75f;   /* secondary amber (foil, highlights) */
+  --accent-glow: 0 0 14px rgba(78, 230, 200, 0.45);
+
+  /* ---- Vote semantics ---- */
+  --up: #5fd17a;
+  --down: #e0685f;
+
+  /* ---- Geometry ---- */
+  --radius-sm: 4px;
+  --radius: 8px;
+  --radius-lg: 16px;
+  --shelf-gap: clamp(2rem, 5vw, 4rem);
+
+  /* ---- Motion ---- */
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-book: 720ms;
+
+  /* ---- Z layers ---- */
+  --z-circuits: 0;
+  --z-content: 10;
+  --z-header: 100;
+  --z-book: 1000;
+  --z-toast: 2000;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --dur-book: 1ms; }
+  * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+}
