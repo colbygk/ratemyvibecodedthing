@@ -44,6 +44,30 @@ The follow graph uses Redis **sets** exactly as you described:
 > sample data — open the shelf, browse, vote, "log in", submit — no backend needed.
 > This is how it behaves out of the box.
 
+## Engineering conventions
+
+Further work follows **TDD, DRY, SOLID, YAGNI**:
+
+- **TDD** — write/extend a failing test first, then the code. Pure logic lives in
+  small modules (`web/src/lib/*`, `api/src/lib/*`) so it's testable without a
+  browser or live Redis/R2. `npm test` in either package; CI runs both on push.
+- **DRY** — shared helpers are extracted once (e.g. crypto + HTTP utils were
+  pulled out of the Worker into `api/src/lib/`); no copy-pasted logic.
+- **SOLID** — modules have one responsibility; side effects (clock, network) are
+  injected, not hard-wired (e.g. `signJWT(payload, secret, nowMs)` takes the time
+  so expiry is deterministically testable).
+- **YAGNI** — build only what a current requirement needs; no speculative layers.
+
+### Tests
+
+```bash
+cd web && npm test     # spine styling, mock data, mock-mode API (anon vote limit, sessions)
+cd api && npm test     # PBKDF2 hashing, JWT sign/verify/expiry, validation, CORS, helpers
+```
+
+41 tests today. Two were red on first run and caught real bugs: signed-vs-unsigned
+bit-shift in spine sizing, and a 204-with-body misuse — both fixed.
+
 ## Run the frontend locally
 
 ```bash
@@ -101,6 +125,8 @@ GET    /users/:name/graph      → {followers, following} counts
 
 - [x] Frontend scaffold: shelves, spines, opening-book overlay, circuit canvas, auth + submit modals, mock mode
 - [x] Worker API skeleton: auth (PBKDF2 + JWT), projects, voting, follow sets, R2 media
+- [x] Test suites (Vitest) for web + api, CI workflow, pure-logic modules extracted
+- [x] Wide-display layout (shelves span up to 2600px instead of capping at 1600px)
 - [ ] Wire media upload UI to `POST /projects/:id/media`
 - [ ] "My projects" / profile view + follow buttons in the UI
 - [ ] Create GitHub repo, enable Pages (Source: GitHub Actions), add DNS + `VITE_API_BASE`

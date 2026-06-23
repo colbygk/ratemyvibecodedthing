@@ -33,9 +33,11 @@ export function spineStyle(project) {
   const cloth = project.coverColor
     ? { bg: project.coverColor, text: pickText(project.coverColor) }
     : CLOTH[h % CLOTH.length];
-  const foil = FOIL[(h >> 8) % FOIL.length];
-  const width = 28 + ((h >> 3) % 22);          // 28–50px
-  const height = 150 + ((h >> 5) % 70);         // 150–220px
+  // Use unsigned shifts (>>>): the hash can exceed 2^31, and signed >> would
+  // go negative and push width/height out of their intended ranges.
+  const foil = FOIL[(h >>> 8) % FOIL.length];
+  const width = 28 + ((h >>> 3) % 22);          // 28–49px
+  const height = 150 + ((h >>> 5) % 70);        // 150–219px
   return {
     "--spine-color": cloth.bg,
     "--spine-text": cloth.text,

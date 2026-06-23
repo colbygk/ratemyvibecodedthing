@@ -91,8 +91,9 @@ img, video { max-width: 100%; display: block; }
 .library {
   position: relative;
   z-index: var(--z-content);
-  padding: clamp(1rem, 4vw, 3rem) clamp(1rem, 5vw, 4rem) 6rem;
-  max-width: 1600px;
+  padding: clamp(1rem, 4vw, 3rem) clamp(1rem, 5vw, 4.5rem) 6rem;
+  /* Let the shelves use wide displays (2000px+ / 4K) instead of capping at 1600. */
+  max-width: min(2600px, 94vw);
   margin-inline: auto;
 }
 

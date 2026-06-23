@@ -17,6 +17,9 @@
  *   followers:<username>      SET   usernames following this user
  */
 
+import { hashPassword, signJWT, verifyJWT, randomHex } from "./lib/crypto.js";
+import { json, cors, httpError, clientIP, safeJSON, validateCreds, hashArrayToObject } from "./lib/util.js";
+
 export default {
   async fetch(request, env, ctx) {
     const origin = env.ALLOWED_ORIGIN || "*";
@@ -282,11 +285,7 @@ async function redis(env, command) {
 
 // HGETALL returns a flat array [k,v,k,v]; normalize to an object.
 async function redisHGETALL(env, key) {
-  const flat = await redis(env, ["HGETALL", key]);
-  if (!flat || !flat.length) return null;
-  const obj = {};
-  for (let i = 0; i < flat.length; i += 2) obj[flat[i]] = flat[i + 1];
-  return obj;
+  return hashArrayToObject(await redis(env, ["HGETALL", key]));
 }
 
 /* ============================ Auth helpers ============================ */
@@ -309,59 +308,4 @@ function validateCreds(username, password) {
   if (!password || password.length < 4) throw httpError("Password too short", 400);
 }
 
-/* ============================ Crypto (WebCrypto) ============================ */
-async function hashPassword(password, saltHex) {
-  const enc = new TextEncoder();
-  const keyMaterial = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveBits"]);
-  const bits = await crypto.subtle.deriveBits(
-    { name: "PBKDF2", salt: hexToBytes(saltHex), iterations: 100000, hash: "SHA-256" },
-    keyMaterial, 256
-  );
-  return bytesToHex(new Uint8Array(bits));
-}
-
-async function signJWT(payload, secret) {
-  const header = b64url(JSON.stringify({ alg: "HS256", typ: "JWT" }));
-  const body = b64url(JSON.stringify({ ...payload, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 30 }));
-  const sig = await hmac(`${header}.${body}`, secret);
-  return `${header}.${body}.${sig}`;
-}
-
-async function verifyJWT(token, secret) {
-  const [header, body, sig] = token.split(".");
-  if (!header || !body || !sig) throw new Error("malformed");
-  const expected = await hmac(`${header}.${body}`, secret);
-  if (!timingSafeEqual(sig, expected)) throw new Error("bad signature");
-  const payload = JSON.parse(atob(body.replace(/-/g, "+").replace(/_/g, "/")));
-  if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) throw new Error("expired");
-  return payload;
-}
-
-async function hmac(data, secret) {
-  const enc = new TextEncoder();
-  const key = await crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(data));
-  return b64urlBytes(new Uint8Array(sig));
-}
-
-/* ============================ Small utils ============================ */
-function json(obj, status = 200) {
-  return new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json" } });
-}
-function cors(res, origin) {
-  const h = new Headers(res.headers);
-  h.set("Access-Control-Allow-Origin", origin);
-  h.set("Access-Control-Allow-Methods", "GET,POST,DELETE,OPTIONS");
-  h.set("Access-Control-Allow-Headers", "Content-Type,Authorization");
-  h.set("Vary", "Origin");
-  return new Response(res.body, { status: res.status, headers: h });
-}
-function httpError(message, status = 400) { const e = new Error(message); e.status = status; return e; }
-function clientIP(request) { return request.headers.get("CF-Connecting-IP") || request.headers.get("x-forwarded-for") || "0.0.0.0"; }
-function safeJSON(s, fallback) { try { return s ? JSON.parse(s) : fallback; } catch { return fallback; } }
-function randomHex(bytes) { return bytesToHex(crypto.getRandomValues(new Uint8Array(bytes))); }
-function bytesToHex(b) { return [...b].map((x) => x.toString(16).padStart(2, "0")).join(""); }
-function hexToBytes(h) { const a = new Uint8Array(h.length / 2); for (let i = 0; i < a.length; i++) a[i] = parseInt(h.substr(i * 2, 2), 16); return a; }
-function b64url(str) { return btoa(unescape(encodeURIComponent(str))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); }
-function b64urlBytes(bytes) { let s = ""; for (const b of bytes) s += String.fromCharCode(b); return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); }
-function timingSafeEqual(a, b) { if (a.length !== b.length) return false; let r = 0; for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i); return r === 0; }
+/* Crypto + HTTP/data utils live in ./lib/crypto.js and ./lib/util.js (imported above). */
