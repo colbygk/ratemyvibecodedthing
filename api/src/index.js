@@ -17,7 +17,7 @@
  *   followers:<username>      SET   usernames following this user
  */
 
-import { hashPassword, signJWT, verifyJWT, randomHex } from "./lib/crypto.js";
+import { hashPassword, signJWT, verifyJWT, randomHex, timingSafeEqual } from "./lib/crypto.js";
 import { json, cors, httpError, clientIP, safeJSON, validateCreds, hashArrayToObject, allowedOrigin } from "./lib/util.js";
 import { consume, reserveStorage, usageToday } from "./lib/quota.js";
 import { sanitizeProjectEdits, editsToHSET } from "./lib/project.js";
