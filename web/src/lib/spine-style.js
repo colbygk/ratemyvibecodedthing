@@ -36,8 +36,8 @@ export function spineStyle(project) {
   // Use unsigned shifts (>>>): the hash can exceed 2^31, and signed >> would
   // go negative and push width/height out of their intended ranges.
   const foil = FOIL[(h >>> 8) % FOIL.length];
-  const width = 160 + ((h >>> 3) % 40);          // 160–199px (large "volume" panels)
-  const height = 460 + ((h >>> 5) % 90);         // 460–549px (taller volumes)
+  const width = 160 + ((h >>> 3) % 40);          // 160–199px (cover tiles)
+  const height = 160 + ((h >>> 5) % 28);         // 160–187px (short, squat covers)
   // Rich gradient (not flat): dark crown → color wash at the foot. Used as the
   // cover when there's no screenshot, and as a tint over screenshots.
   const grad = `linear-gradient(180deg, #08090d 0%, ${cloth.bg}1f 42%, ${cloth.bg}cc 100%)`;
@@ -53,6 +53,17 @@ export function spineStyle(project) {
     "--spine-w": `${width}px`,
     "--spine-h": `${height}px`,
   };
+}
+
+// Pick a spine-title font size (px) so the title fits across the spine width.
+// Sized by the longest (unbreakable) word: short titles stay at a readable max,
+// long ones shrink toward the min. `glyph` is the avg advance per char in ems
+// for the italic display face. Combined with CSS overflow-wrap as a backstop.
+export function titleFontPx(title, spineW, { min = 11, max = 17, pad = 28, glyph = 0.52 } = {}) {
+  const longest = String(title || "").split(/\s+/).reduce((m, word) => Math.max(m, word.length), 0) || 1;
+  const usable = Math.max(40, spineW - pad);
+  const fit = usable / (longest * glyph);
+  return Math.round(Math.max(min, Math.min(max, fit)));
 }
 
 // mShots (free, no key, server-cached) screenshot of a project URL → spine cover.

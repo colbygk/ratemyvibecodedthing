@@ -115,7 +115,7 @@ img, video { max-width: 100%; display: block; }
    A repeating-gradient draws a shelf-board line under EVERY row (rows are a
    fixed --row-h tall so the lines align). */
 .shelf {
-  --row-h: 562px;
+  --row-h: 200px;
   position: relative;
   display: flex;
   flex-wrap: wrap;
@@ -143,7 +143,7 @@ img, video { max-width: 100%; display: block; }
   position: relative;
   flex: 0 0 auto;
   width: var(--spine-w, 170px);
-  height: var(--spine-h, 500px);
+  height: var(--spine-h, 180px);
   background: #08090d;
   border-radius: 3px;
   cursor: pointer;
@@ -158,7 +158,6 @@ img, video { max-width: 100%; display: block; }
   outline: none;
 }
 .spine:hover .spine-cover { opacity: 0.95; }
-.spine:hover .spine-enter { opacity: 1; }
 
 /* cover: rich gradient by default; the webpage screenshot when available */
 .spine-cover {
@@ -179,23 +178,23 @@ img, video { max-width: 100%; display: block; }
 .spine-score {
   position: absolute; top: 12px; left: 0; right: 0; text-align: center;
   font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.06em;
-  color: var(--spine-text, #f3ece0); opacity: 0.7;
-  text-shadow: 0 1px 3px rgba(0,0,0,0.75);
+  color: var(--spine-text, #f3ece0); opacity: 0.85;
+  /* layered halo so the number stays legible over a light cover crown */
+  text-shadow: 0 0 2px rgba(0,0,0,0.95), 0 1px 3px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.7);
 }
 .spine-foot {
   position: absolute; left: 0; right: 0; bottom: 0;
   display: flex; flex-direction: column; align-items: center; gap: 3px;
-  padding: 16px 12px 18px; text-align: center;
+  padding: 10px 10px 12px; text-align: center;
   color: var(--spine-text, #f3ece0); text-shadow: 0 1px 5px rgba(0,0,0,0.85);
 }
-.spine-vol { font-family: var(--font-mono); font-size: 0.54rem; letter-spacing: 0.22em; text-transform: uppercase; opacity: 0.6; }
 .spine-title {
   font-family: var(--font-display); font-style: italic; font-weight: 500;
-  font-size: 1.04rem; line-height: 1.12;
-  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  /* size is computed per-title in JS so long titles fit the spine width */
+  font-size: var(--spine-title-size, 1.04rem); line-height: 1.12;
+  overflow-wrap: anywhere;  /* hard backstop: break a word too long to shrink-fit */
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
-.spine-by { font-family: var(--font-mono); font-size: 0.56rem; letter-spacing: 0.04em; opacity: 0.55; margin-top: 2px; }
-.spine-enter { font-family: var(--font-mono); font-size: 0.54rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--accent); opacity: 0; transition: opacity 0.3s var(--ease); margin-top: 6px; }
 
 /* ---- The [+] create spine ---- */
 .spine--add {
@@ -362,8 +361,8 @@ img, video { max-width: 100%; display: block; }
   .book::before { display: none; }
   .page--left { border-right: none; border-bottom: 1px solid var(--paper-shadow); }
   .brand .tag { display: none; }
-  /* smaller volumes + shorter rows on phones */
-  .shelf { --row-h: 432px; }
-  .spine { width: clamp(128px, 44vw, 170px) !important; height: clamp(360px, 84vw, 420px) !important; }
-  .spine-title { font-size: 0.92rem; }
+  /* smaller cover tiles + shorter rows on phones */
+  .shelf { --row-h: 200px; }
+  .spine { width: clamp(128px, 44vw, 170px) !important; height: clamp(150px, 40vw, 185px) !important; }
+  .spine-title { font-size: min(0.92rem, var(--spine-title-size, 0.92rem)); }
 }

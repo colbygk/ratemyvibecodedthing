@@ -1,7 +1,7 @@
 // Renders projects as large "volume" spines that flow responsively across rows,
 // each backed by an auto-snapshot of the project's webpage (mShots) tinted with
 // the chosen color, with the title set at the foot (à la "Since You Arrived").
-import { spineStyle, shotURL } from "../lib/spine-style.js";
+import { spineStyle, shotURL, titleFontPx } from "../lib/spine-style.js";
 
 export function renderShelves(container, projects, { onOpen, onCreate, showCreate } = {}) {
   container.innerHTML = "";
@@ -28,7 +28,9 @@ function createSpine(project, onOpen) {
   el.className = "spine";
   el.type = "button";
   el.setAttribute("aria-label", `Open “${project.title}” by ${project.author}`);
-  Object.entries(spineStyle(project)).forEach(([k, v]) => el.style.setProperty(k, v));
+  const style = spineStyle(project);
+  Object.entries(style).forEach(([k, v]) => el.style.setProperty(k, v));
+  el.style.setProperty("--spine-title-size", `${titleFontPx(project.title, parseInt(style["--spine-w"], 10) || 170)}px`);
 
   const shot = shotURL(project.links?.[0]?.url);
   if (shot) {
@@ -42,10 +44,7 @@ function createSpine(project, onOpen) {
     <span class="spine-tint" aria-hidden="true"></span>
     <span class="spine-score">${net >= 0 ? "+" : ""}${net}</span>
     <span class="spine-foot">
-      <span class="spine-vol">vol.</span>
       <span class="spine-title">${escape(project.title)}</span>
-      <span class="spine-by">by ${escape(project.author)}</span>
-      <span class="spine-enter">open</span>
     </span>`;
   el.addEventListener("click", () => onOpen?.(project.id));
   return el;
@@ -56,7 +55,7 @@ function createAddSpine(onCreate) {
   el.className = "spine spine--add";
   el.type = "button";
   el.style.setProperty("--spine-w", "170px");
-  el.style.setProperty("--spine-h", "500px");
+  el.style.setProperty("--spine-h", "180px");
   el.setAttribute("aria-label", "Submit a new vibe-coded project");
   el.innerHTML = `<span class="plus">+</span><span class="spine-foot"><span class="spine-title">add a thing</span></span>`;
   el.addEventListener("click", () => onCreate?.());

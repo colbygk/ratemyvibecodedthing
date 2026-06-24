@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { spineStyle, shotURL } from "../src/lib/spine-style.js";
+import { spineStyle, shotURL, titleFontPx } from "../src/lib/spine-style.js";
 
 describe("spineStyle", () => {
   it("is deterministic for the same project", () => {
@@ -21,8 +21,8 @@ describe("spineStyle", () => {
       const h = parseInt(s["--spine-h"], 10);
       expect(w).toBeGreaterThanOrEqual(160);
       expect(w).toBeLessThanOrEqual(200);
-      expect(h).toBeGreaterThanOrEqual(460);
-      expect(h).toBeLessThanOrEqual(550);
+      expect(h).toBeGreaterThanOrEqual(160);
+      expect(h).toBeLessThanOrEqual(190);
     }
   });
 
@@ -40,6 +40,28 @@ describe("spineStyle", () => {
   it("uses light text on a dark custom cover", () => {
     const s = spineStyle({ id: "abc", coverColor: "#101010" });
     expect(s["--spine-text"]).toBe("#f3ece0");
+  });
+});
+
+describe("titleFontPx", () => {
+  it("keeps short titles at the readable maximum", () => {
+    expect(titleFontPx("Fern", 170)).toBe(17);
+  });
+
+  it("shrinks a long unbreakable title so it fits the spine width", () => {
+    const big = titleFontPx("Fern", 170);
+    const small = titleFontPx("ratemyvibecodedthing.ai", 170);
+    expect(small).toBeLessThan(big);
+  });
+
+  it("never goes below the minimum or above the maximum", () => {
+    expect(titleFontPx("a".repeat(80), 160)).toBeGreaterThanOrEqual(11);
+    expect(titleFontPx("", 200)).toBeLessThanOrEqual(17);
+  });
+
+  it("gives wider spines a larger fit for the same title", () => {
+    expect(titleFontPx("ratemyvibecodedthing.ai", 199))
+      .toBeGreaterThanOrEqual(titleFontPx("ratemyvibecodedthing.ai", 160));
   });
 });
 

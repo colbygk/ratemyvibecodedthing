@@ -1,5 +1,7 @@
-// Faint PCB circuit traces around the periphery with travelling light pulses.
-// Minimal, low-cost: traces are drawn once; only the moving pulses re-render.
+// Faint PCB circuit traces around the periphery. Each segment between two solder
+// pads behaves like a plucked string: a random segment "twangs" (a standing wave
+// with nodes fixed at its pads), the energy diffuses along the trace to neighbouring
+// segments and fades out, then another random segment twangs. Subtle and low-cost.
 // Respects prefers-reduced-motion and pauses when a book/modal is open.
 
 export function initCircuits(canvas) {
@@ -7,12 +9,19 @@ export function initCircuits(canvas) {
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
   let dpr = Math.min(window.devicePixelRatio || 1, 2);
   let w = 0, h = 0;
-  let traces = [];   // each: {pts:[{x,y}], pads:[...]}
-  let pulses = [];   // each: {trace, t, speed, len}
+  let traces = [];      // each: {pts:[{x,y}]}
+  let segments = [];    // each: a string between two pads (see buildSegments)
+  let diff = [];        // reused per-frame energy-transfer buffer
+  let twangTimer = 0;   // ms until the next pluck
+  let last = 0;         // last frame timestamp
   let paused = false;
 
-  const ACCENT = "rgba(78,230,200,";
-  const TRACE = "rgba(120,140,150,0.10)";
+  // physics / look tuning
+  const DAMP = 0.992;       // per-16ms amplitude decay (longer-ringing twang)
+  const COUPLING = 0.09;    // energy that flows to a calmer neighbour each step
+  const BASE_OMEGA = 0.28;  // oscillation speed at REF_LEN (radians / 16ms)
+  const REF_LEN = 120;
+  const PAD = "rgba(120,140,150,0.14)";
 
   function resize() {
     // clientWidth/clientHeight are read-only; CSS (position:fixed; inset:0) sizes
@@ -36,14 +45,10 @@ export function initCircuits(canvas) {
     ];
     const density = Math.max(6, Math.round(h / 90));
     for (const band of bands) {
-      for (let i = 0; i < density; i++) {
-        traces.push(makeTrace(band, i, density));
-      }
+      for (let i = 0; i < density; i++) traces.push(makeTrace(band, i, density));
     }
-    // seed pulses
-    pulses = [];
-    const count = reduced ? 0 : Math.min(18, Math.round(traces.length * 0.5));
-    for (let i = 0; i < count; i++) spawnPulse(i);
+    buildSegments();
+    twangTimer = 300; // first pluck shortly after load
   }
 
   function makeTrace(band, i, density) {
@@ -62,87 +67,133 @@ export function initCircuits(canvas) {
       }
       pts.push({ x, y });
     }
-    return { pts, length: segLength(pts) };
+    return { pts };
   }
 
-  function segLength(pts) {
-    let L = 0;
-    for (let i = 1; i < pts.length; i++) L += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
-    return L;
-  }
-
-  function spawnPulse(i) {
-    const trace = traces[(Math.floor(i * 2.3 + i * i) % traces.length + traces.length) % traces.length];
-    pulses.push({ trace, t: (i * 0.13) % 1, speed: 0.0006 + (i % 5) * 0.00018, len: 0.08 + (i % 3) * 0.03 });
-  }
-
-  // map a 0..1 position along a polyline to {x,y}
-  function pointAt(trace, t) {
-    const target = t * trace.length;
-    let acc = 0;
-    const pts = trace.pts;
-    for (let i = 1; i < pts.length; i++) {
-      const d = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
-      if (acc + d >= target) {
-        const f = (target - acc) / (d || 1);
-        return { x: pts[i - 1].x + (pts[i].x - pts[i - 1].x) * f, y: pts[i - 1].y + (pts[i].y - pts[i - 1].y) * f };
-      }
-      acc += d;
-    }
-    return pts[pts.length - 1];
-  }
-
-  function drawStatic() {
-    ctx.clearRect(0, 0, w, h);
-    ctx.lineWidth = 1;
-    ctx.strokeStyle = TRACE;
+  // One "string" per polyline segment, with nodes fixed at the pads (sin() is 0
+  // at both ends). Neighbours are the previous/next segment in the same trace, so
+  // a twang travels down the chain.
+  function buildSegments() {
+    segments = [];
     for (const tr of traces) {
+      const start = segments.length;
+      const pts = tr.pts;
+      for (let i = 1; i < pts.length; i++) {
+        const ax = pts[i - 1].x, ay = pts[i - 1].y, bx = pts[i].x, by = pts[i].y;
+        const dx = bx - ax, dy = by - ay;
+        const len = Math.hypot(dx, dy) || 1;
+        segments.push({
+          ax, ay, bx, by, len,
+          nx: -dy / len, ny: dx / len,                       // unit perpendicular
+          amp: 0, phase: 0, mode: 1,
+          omega: clamp(BASE_OMEGA * (REF_LEN / len), 0.08, 0.6),
+          neighbors: [],
+        });
+      }
+      for (let i = start; i < segments.length; i++) {
+        if (i > start) segments[i].neighbors.push(i - 1);
+        if (i < segments.length - 1) segments[i].neighbors.push(i + 1);
+      }
+    }
+    diff = new Array(segments.length).fill(0);
+  }
+
+  function maxAmpFor(s) { return Math.min(10, s.len * 0.16); }
+
+  // Pluck a segment: jump its amplitude and restart its phase so it begins fully
+  // displaced (a released string), mostly the fundamental, occasionally 2 bellies.
+  function twang(idx, energy) {
+    const s = segments[idx];
+    if (!s) return;
+    s.amp = Math.max(s.amp, energy * maxAmpFor(s));
+    s.phase = 0;
+    s.mode = Math.random() < 0.2 ? 2 : 1;
+  }
+
+  function step(dt) {
+    if (!segments.length) return;
+    const fr = dt / 16;
+
+    // scheduler: every ~1–3s, twang a random segment
+    twangTimer -= dt;
+    if (twangTimer <= 0) {
+      twang(Math.floor(Math.random() * segments.length), 1);
+      twangTimer = 900 + Math.random() * 2100;
+    }
+
+    // advance each oscillator and damp it
+    const decay = Math.pow(DAMP, fr);
+    for (const s of segments) {
+      s.phase += s.omega * fr;
+      s.amp *= decay;
+      if (s.amp < 0.02) s.amp = 0;
+    }
+
+    // diffuse energy toward calmer neighbours so the vibration passes along
+    diff.fill(0);
+    for (let i = 0; i < segments.length; i++) {
+      const s = segments[i];
+      for (const j of s.neighbors) {
+        const flow = (s.amp - segments[j].amp) * COUPLING * fr;
+        if (flow > 0) { diff[i] -= flow; diff[j] += flow; }
+      }
+    }
+    for (let i = 0; i < segments.length; i++) segments[i].amp += diff[i];
+  }
+
+  function colorFor(e) {
+    const r = Math.round(120 + (78 - 120) * e);
+    const g = Math.round(140 + (230 - 140) * e);
+    const b = Math.round(150 + (200 - 150) * e);
+    return `rgba(${r},${g},${b},${(0.10 + 0.42 * e).toFixed(3)})`;
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, w, h);
+    for (const s of segments) {
+      const e = Math.min(1, s.amp / 8);
+      ctx.strokeStyle = colorFor(e);
+      ctx.lineWidth = 1 + e * 0.8;
       ctx.beginPath();
-      tr.pts.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
+      if (s.amp < 0.3) {
+        ctx.moveTo(s.ax, s.ay);
+        ctx.lineTo(s.bx, s.by);
+      } else {
+        const N = 12;
+        for (let k = 0; k <= N; k++) {
+          const u = k / N;
+          const disp = s.amp * Math.sin(s.mode * Math.PI * u) * Math.cos(s.phase);
+          const x = s.ax + (s.bx - s.ax) * u + s.nx * disp;
+          const y = s.ay + (s.by - s.ay) * u + s.ny * disp;
+          k ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+        }
+      }
       ctx.stroke();
-      // solder pads (nodes)
-      ctx.fillStyle = "rgba(120,140,150,0.14)";
+    }
+    // solder pads (nodes)
+    ctx.fillStyle = PAD;
+    for (const tr of traces) {
       for (const p of tr.pts) { ctx.beginPath(); ctx.arc(p.x, p.y, 2, 0, Math.PI * 2); ctx.fill(); }
     }
   }
 
-  function frame() {
-    if (paused) { requestAnimationFrame(frame); return; }
-    drawStatic();
-    for (const pu of pulses) {
-      pu.t += pu.speed * 16;
-      if (pu.t > 1 + pu.len) pu.t = -pu.len;
-      // draw a short bright segment (the travelling light) with a glow tail
-      const samples = 10;
-      for (let s = 0; s < samples; s++) {
-        const tt = pu.t - (pu.len * s) / samples;
-        if (tt < 0 || tt > 1) continue;
-        const { x, y } = pointAt(pu.trace, tt);
-        const alpha = (1 - s / samples) * 0.8;
-        ctx.fillStyle = ACCENT + alpha + ")";
-        ctx.beginPath();
-        ctx.arc(x, y, 1.6, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      // bright head
-      if (pu.t >= 0 && pu.t <= 1) {
-        const { x, y } = pointAt(pu.trace, pu.t);
-        ctx.save();
-        ctx.shadowBlur = 8; ctx.shadowColor = ACCENT + "0.9)";
-        ctx.fillStyle = ACCENT + "1)";
-        ctx.beginPath(); ctx.arc(x, y, 2, 0, Math.PI * 2); ctx.fill();
-        ctx.restore();
-      }
-    }
+  function frame(ts) {
+    if (paused) { last = ts; requestAnimationFrame(frame); return; }
+    const dt = Math.min(50, ts - last || 16);
+    last = ts;
+    step(dt);
+    draw();
     requestAnimationFrame(frame);
   }
 
   window.addEventListener("resize", resize, { passive: true });
   resize();
-  if (reduced) { drawStatic(); } else { requestAnimationFrame(frame); }
+  if (reduced) { draw(); } else { requestAnimationFrame(frame); }
 
   return {
     pause: () => (paused = true),
     resume: () => (paused = false),
   };
 }
+
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
