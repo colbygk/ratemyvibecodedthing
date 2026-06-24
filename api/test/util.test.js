@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  json, httpError, cors, clientIP, safeJSON, validateCreds, hashArrayToObject,
+  json, httpError, cors, clientIP, safeJSON, validateCreds, hashArrayToObject, allowedOrigin,
 } from "../src/lib/util.js";
 
 describe("json", () => {
@@ -60,6 +60,21 @@ describe("validateCreds", () => {
     expect(() => validateCreds("nope!", "secret")).toThrow();
   });
   it("rejects short passwords", () => expect(() => validateCreds("nova", "abc")).toThrow(/Password/));
+});
+
+describe("allowedOrigin", () => {
+  const list = ["https://ratemyvibecodedthing.ai", "http://ratemyvibecodedthing.ai", "http://localhost:5173"];
+  it("reflects an allow-listed origin", () => {
+    expect(allowedOrigin("http://ratemyvibecodedthing.ai", list)).toBe("http://ratemyvibecodedthing.ai");
+    expect(allowedOrigin("http://localhost:5173", list)).toBe("http://localhost:5173");
+  });
+  it("falls back to the first configured origin for unknown/missing origins", () => {
+    expect(allowedOrigin("https://evil.example", list)).toBe("https://ratemyvibecodedthing.ai");
+    expect(allowedOrigin(null, list)).toBe("https://ratemyvibecodedthing.ai");
+  });
+  it("falls back to * when nothing is configured", () => {
+    expect(allowedOrigin("https://x", [])).toBe("*");
+  });
 });
 
 describe("hashArrayToObject", () => {

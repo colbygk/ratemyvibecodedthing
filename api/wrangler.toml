@@ -2,9 +2,10 @@ name = "rmvct-api"
 main = "src/index.js"
 compatibility_date = "2024-11-01"
 
-# Public site origin allowed for CORS (override per-env as needed).
+# Allowed CORS origins (comma-separated). The Worker reflects whichever matches
+# the request — covers http during cert provisioning, https after, and dev.
 [vars]
-ALLOWED_ORIGIN = "https://ratemyvibecodedthing.ai"
+ALLOWED_ORIGIN = "https://ratemyvibecodedthing.ai,http://ratemyvibecodedthing.ai,http://localhost:5173,http://localhost:4173"
 
 # ---- Cloudflare R2 bucket for user-uploaded images/video ----
 # DEFERRED: R2 not yet enabled on the account. To turn on media uploads:

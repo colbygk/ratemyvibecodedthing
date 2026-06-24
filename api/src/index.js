@@ -18,11 +18,12 @@
  */
 
 import { hashPassword, signJWT, verifyJWT, randomHex } from "./lib/crypto.js";
-import { json, cors, httpError, clientIP, safeJSON, validateCreds, hashArrayToObject } from "./lib/util.js";
+import { json, cors, httpError, clientIP, safeJSON, validateCreds, hashArrayToObject, allowedOrigin } from "./lib/util.js";
 
 export default {
   async fetch(request, env, ctx) {
-    const origin = env.ALLOWED_ORIGIN || "*";
+    const allowList = (env.ALLOWED_ORIGIN || "*").split(",").map((s) => s.trim()).filter(Boolean);
+    const origin = allowedOrigin(request.headers.get("Origin"), allowList);
     if (request.method === "OPTIONS") return cors(new Response(null, { status: 204 }), origin);
     try {
       const res = await route(request, env, ctx);

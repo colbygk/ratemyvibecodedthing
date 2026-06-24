@@ -41,6 +41,15 @@ export function validateCreds(username, password) {
   if (!password || password.length < 4) throw httpError("Password too short", 400);
 }
 
+// Pick the CORS origin to echo back: reflect the request's Origin when it's in
+// the allow-list, otherwise fall back to the first configured origin. Reflecting
+// (rather than a single fixed value) lets the same Worker serve the site over
+// http during cert provisioning, https afterward, and localhost in dev.
+export function allowedOrigin(requestOrigin, allowList) {
+  if (requestOrigin && allowList.includes(requestOrigin)) return requestOrigin;
+  return allowList[0] || "*";
+}
+
 // Redis HGETALL returns a flat [k,v,k,v] array; turn it into an object.
 export function hashArrayToObject(flat) {
   if (!flat || !flat.length) return null;
