@@ -15,8 +15,10 @@ export function initCircuits(canvas) {
   const TRACE = "rgba(120,140,150,0.10)";
 
   function resize() {
-    w = canvas.clientWidth = window.innerWidth;
-    h = canvas.clientHeight = window.innerHeight;
+    // clientWidth/clientHeight are read-only; CSS (position:fixed; inset:0) sizes
+    // the element to the viewport, so we only set the backing store here.
+    w = window.innerWidth;
+    h = window.innerHeight;
     canvas.width = w * dpr;
     canvas.height = h * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);

@@ -16,9 +16,12 @@ const els = {
 
 const state = { session: null, projects: [] };
 
-// ---- circuit background ----
-const circuits = initCircuits(els.canvas);
-bindCircuits(circuits);
+// ---- circuit background (decorative; must never break the app) ----
+try {
+  bindCircuits(initCircuits(els.canvas));
+} catch (err) {
+  console.warn("circuit background disabled:", err);
+}
 
 // ---- render helpers ----
 function paintShelves() {
