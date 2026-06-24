@@ -15,6 +15,7 @@ export function initCircuits(canvas) {
   let twangTimer = 0;   // ms until the next pluck
   let last = 0;         // last frame timestamp
   let paused = false;
+  const mouse = { x: -9999, y: -9999, speed: 0 };  // cursor + recent move speed
 
   // physics / look tuning
   const DAMP = 0.992;       // per-16ms amplitude decay (longer-ringing twang)
@@ -139,6 +140,22 @@ export function initCircuits(canvas) {
       }
     }
     for (let i = 0; i < segments.length; i++) segments[i].amp += diff[i];
+
+    // mouse: sweeping the cursor near a trace excites the nearby segments, like
+    // dragging a finger across strings. Driven by movement, so a still cursor
+    // doesn't keep pumping energy.
+    if (mouse.speed > 0.002) {
+      const R = 120;
+      for (const s of segments) {
+        const mx = (s.ax + s.bx) / 2, my = (s.ay + s.by) / 2;
+        const d = Math.hypot(mouse.x - mx, mouse.y - my);
+        if (d < R) {
+          const kick = (1 - d / R) * mouse.speed * maxAmpFor(s) * 1.4;
+          if (kick > s.amp) s.amp = kick;
+        }
+      }
+      mouse.speed *= Math.pow(0.6, fr); // fades once the cursor stops moving
+    }
   }
 
   function colorFor(e) {
@@ -187,6 +204,13 @@ export function initCircuits(canvas) {
   }
 
   window.addEventListener("resize", resize, { passive: true });
+  if (!reduced) {
+    window.addEventListener("mousemove", (e) => {
+      if (mouse.x > -9000) mouse.speed = Math.min(1, Math.hypot(e.clientX - mouse.x, e.clientY - mouse.y) / 28);
+      mouse.x = e.clientX;
+      mouse.y = e.clientY;
+    }, { passive: true });
+  }
   resize();
   if (reduced) { draw(); } else { requestAnimationFrame(frame); }
 
