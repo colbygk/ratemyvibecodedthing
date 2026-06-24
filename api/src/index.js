@@ -19,6 +19,7 @@
 
 import { hashPassword, signJWT, verifyJWT, randomHex } from "./lib/crypto.js";
 import { json, cors, httpError, clientIP, safeJSON, validateCreds, hashArrayToObject, allowedOrigin } from "./lib/util.js";
+import { consume, reserveStorage, usageToday } from "./lib/quota.js";
 
 export default {
   async fetch(request, env, ctx) {
@@ -42,6 +43,13 @@ async function route(request, env, ctx) {
   const seg = path.split("/").filter(Boolean); // e.g. ["projects", "abc", "vote"]
 
   if (path === "/" ) return json({ ok: true, service: "rmvct-api" });
+
+  // ---- usage snapshot (uncounted, so monitoring never trips the limit) ----
+  if (path === "/usage" && m === "GET") return json(await usageToday((cmd) => redis(env, cmd), env, Date.now()));
+
+  // Count this request against the daily quota (graceful 429 when over). This is
+  // the software guard; provider-side caps remain the primary protection.
+  await consume((cmd) => redis(env, cmd), env, "request", Date.now());
 
   // ---- auth ----
   if (path === "/auth/signup" && m === "POST") return signup(request, env);
@@ -251,6 +259,13 @@ async function uploadMedia(id, request, env) {
   const type = request.headers.get("content-type") || "application/octet-stream";
   if (!/^image\/|^video\//.test(type)) throw httpError("Only image/video uploads allowed", 415);
 
+  // Cost guard: enforce per-file + total storage caps and the daily upload-op
+  // limit BEFORE writing to R2 (R2 has no provider-side auto-stop).
+  const r1 = (cmd) => redis(env, cmd);
+  const bytes = Number(request.headers.get("content-length") || 0);
+  await reserveStorage(r1, env, bytes, Date.now());
+  await consume(r1, env, "r2_upload", Date.now());
+
   const ext = type.split("/")[1]?.split(";")[0] || "bin";
   const objectKey = `${id}/${randomHex(8)}.${ext}`;
   await env.MEDIA.put(objectKey, request.body, { httpMetadata: { contentType: type } });
@@ -264,6 +279,7 @@ async function uploadMedia(id, request, env) {
 
 async function serveMedia(key, env) {
   if (!env.MEDIA) throw httpError("Media storage not enabled yet", 503);
+  await consume((cmd) => redis(env, cmd), env, "r2_read", Date.now());
   const obj = await env.MEDIA.get(key);
   if (!obj) return json({ error: "Not found" }, 404);
   const headers = new Headers();

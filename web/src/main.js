@@ -62,7 +62,8 @@ async function boot() {
   try {
     state.projects = await api.listProjects();
   } catch (err) {
-    toast("Couldn't load the shelves");
+    // Surface the server's reason (e.g. a daily-limit 429) rather than a generic line.
+    toast(err.message || "Couldn't load the shelves");
     state.projects = [];
   }
   paintShelves();

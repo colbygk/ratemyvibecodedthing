@@ -6,6 +6,13 @@ compatibility_date = "2024-11-01"
 # the request — covers http during cert provisioning, https after, and dev.
 [vars]
 ALLOWED_ORIGIN = "https://ratemyvibecodedthing.ai,http://ratemyvibecodedthing.ai,http://localhost:5173,http://localhost:4173"
+# Daily usage caps (graceful 429 when exceeded). Defaults live in src/lib/quota.js;
+# uncomment to override. See docs/COST.md.
+# LIMIT_REQUEST = "20000"
+# LIMIT_R2_UPLOAD = "500"
+# LIMIT_R2_READ = "20000"
+# MAX_STORAGE_BYTES = "9663676416"   # ~9 GB
+# MAX_UPLOAD_BYTES = "26214400"      # 25 MB
 
 # ---- Cloudflare R2 bucket for user-uploaded images/video ----
 # DEFERRED: R2 not yet enabled on the account. To turn on media uploads:
