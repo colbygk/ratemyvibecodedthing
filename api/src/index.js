@@ -241,6 +241,7 @@ async function graph(username, env) {
 
 /* ============================ Media (R2) ============================ */
 async function uploadMedia(id, request, env) {
+  if (!env.MEDIA) throw httpError("Media storage not enabled yet", 503);
   const username = await requireUser(request, env);
   const owner = await redis(env, ["HGET", `project:${id}`, "author"]);
   if (!owner) throw httpError("Not found", 404);
@@ -261,6 +262,7 @@ async function uploadMedia(id, request, env) {
 }
 
 async function serveMedia(key, env) {
+  if (!env.MEDIA) throw httpError("Media storage not enabled yet", 503);
   const obj = await env.MEDIA.get(key);
   if (!obj) return json({ error: "Not found" }, 404);
   const headers = new Headers();
@@ -303,9 +305,4 @@ async function optionalUser(request, env) {
   return payload?.sub || null;
 }
 
-function validateCreds(username, password) {
-  if (!username || !/^[a-zA-Z0-9_]{2,24}$/.test(username)) throw httpError("Username: 2–24 letters, numbers, underscore", 400);
-  if (!password || password.length < 4) throw httpError("Password too short", 400);
-}
-
-/* Crypto + HTTP/data utils live in ./lib/crypto.js and ./lib/util.js (imported above). */
+/* validateCreds + crypto + HTTP/data utils live in ./lib/crypto.js and ./lib/util.js (imported above). */

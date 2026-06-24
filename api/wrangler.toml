@@ -7,10 +7,13 @@ compatibility_date = "2024-11-01"
 ALLOWED_ORIGIN = "https://ratemyvibecodedthing.ai"
 
 # ---- Cloudflare R2 bucket for user-uploaded images/video ----
-# Create with: wrangler r2 bucket create rmvct-media
-[[r2_buckets]]
-binding = "MEDIA"
-bucket_name = "rmvct-media"
+# DEFERRED: R2 not yet enabled on the account. To turn on media uploads:
+#   1) Enable R2 in the Cloudflare dashboard
+#   2) wrangler r2 bucket create rmvct-media
+#   3) uncomment the binding below and redeploy
+# [[r2_buckets]]
+# binding = "MEDIA"
+# bucket_name = "rmvct-media"
 
 # ---- Secrets (set via `wrangler secret put <NAME>`; do NOT commit) ----
 #   UPSTASH_REDIS_REST_URL    e.g. https://xxxx.upstash.io
