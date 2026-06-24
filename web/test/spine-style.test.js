@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { spineStyle } from "../src/lib/spine-style.js";
+import { spineStyle, shotURL } from "../src/lib/spine-style.js";
 
 describe("spineStyle", () => {
   it("is deterministic for the same project", () => {
@@ -19,11 +19,15 @@ describe("spineStyle", () => {
       const s = spineStyle({ id: `seed-${i}` });
       const w = parseInt(s["--spine-w"], 10);
       const h = parseInt(s["--spine-h"], 10);
-      expect(w).toBeGreaterThanOrEqual(28);
-      expect(w).toBeLessThanOrEqual(50);
-      expect(h).toBeGreaterThanOrEqual(150);
-      expect(h).toBeLessThanOrEqual(220);
+      expect(w).toBeGreaterThanOrEqual(140);
+      expect(w).toBeLessThanOrEqual(180);
+      expect(h).toBeGreaterThanOrEqual(380);
+      expect(h).toBeLessThanOrEqual(460);
     }
+  });
+
+  it("provides a gradient cover derived from the color", () => {
+    expect(spineStyle({ id: "abc" })["--spine-grad"]).toMatch(/linear-gradient/);
   });
 
   it("honors a user-supplied cover color", () => {
@@ -36,5 +40,18 @@ describe("spineStyle", () => {
   it("uses light text on a dark custom cover", () => {
     const s = spineStyle({ id: "abc", coverColor: "#101010" });
     expect(s["--spine-text"]).toBe("#f3ece0");
+  });
+});
+
+describe("shotURL", () => {
+  it("builds an mShots URL with the encoded target", () => {
+    const u = shotURL("https://example.com/app?a=1", 360, 520);
+    expect(u).toContain("s0.wp.com/mshots/v1/");
+    expect(u).toContain(encodeURIComponent("https://example.com/app?a=1"));
+    expect(u).toContain("w=360");
+  });
+  it("returns null when there is no url", () => {
+    expect(shotURL("")).toBeNull();
+    expect(shotURL(null)).toBeNull();
   });
 });

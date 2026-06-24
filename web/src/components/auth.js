@@ -76,30 +76,33 @@ export function openAuth(overlay, mode, onSession) {
   });
 }
 
-export function openSubmit(overlay, onCreated) {
+// Create (project=null) or edit (project provided) a project. Same form, both modes.
+export function openProjectForm(overlay, { project = null, onSaved } = {}) {
+  const editing = !!project;
+  const link = editing ? (project.links?.[0]?.url || "") : "";
+  const color = (editing && project.coverColor) || "#3a4a44";
   overlay.innerHTML = `
     <div class="modal" role="document">
-      <h2>Shelve a new thing</h2>
-      <p class="hint">Tell us about the thing you vibe-coded. Links and media are optional.</p>
+      <h2>${editing ? "Edit your thing" : "Shelve a new thing"}</h2>
+      <p class="hint">Tell us about the thing you vibe-coded. The project link becomes the spine's cover snapshot.</p>
       <form id="submit-form">
         <div class="field">
           <label for="t">Title</label>
-          <input id="t" name="title" required maxlength="60" placeholder="What's it called?" />
+          <input id="t" name="title" required maxlength="60" placeholder="What's it called?" value="${attr(editing ? project.title : "")}" />
         </div>
         <div class="field">
           <label for="d">Description</label>
-          <textarea id="d" name="description" rows="3" maxlength="600" placeholder="How did the vibes go?"></textarea>
+          <textarea id="d" name="description" rows="3" maxlength="600" placeholder="How did the vibes go?">${esc(editing ? project.description : "")}</textarea>
         </div>
         <div class="field">
           <label for="l">Project link</label>
-          <input id="l" name="link" type="url" placeholder="https://…" />
+          <input id="l" name="link" type="url" placeholder="https://…" value="${attr(link)}" />
         </div>
         <div class="field">
-          <label for="c">Spine color (optional)</label>
-          <input id="c" name="coverColor" type="color" value="#3a4a44" style="height:42px;padding:4px" />
+          <label for="c">Spine color</label>
+          <input id="c" name="coverColor" type="color" value="${attr(color)}" style="height:42px;padding:4px" />
         </div>
-        <p class="hint" style="margin:0 0 1rem">Image / video upload is wired to the backend (Cloudflare R2) — add files after the API is connected.</p>
-        <button class="btn btn--accent" type="submit">Shelve it</button>
+        <button class="btn btn--accent" type="submit">${editing ? "Save changes" : "Shelve it"}</button>
       </form>
       <button class="book-close" aria-label="Close" data-close>✕</button>
     </div>`;
@@ -112,19 +115,23 @@ export function openSubmit(overlay, onCreated) {
   overlay.querySelector("#submit-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
-    const link = fd.get("link");
+    const url = fd.get("link");
+    const data = {
+      title: fd.get("title").trim(),
+      description: fd.get("description").trim(),
+      coverColor: fd.get("coverColor"),
+      links: url ? [{ label: "live demo", url }] : [],
+    };
     try {
-      const project = await api.createProject({
-        title: fd.get("title").trim(),
-        description: fd.get("description").trim(),
-        coverColor: fd.get("coverColor"),
-        links: link ? [{ label: "live demo", url: link }] : [],
-      });
+      const saved = editing ? await api.updateProject(project.id, data) : await api.createProject(data);
       close();
-      toast(`“${project.title}” is on the shelf`);
-      onCreated?.(project);
+      toast(editing ? `“${saved.title}” updated` : `“${saved.title}” is on the shelf`);
+      onSaved?.(saved);
     } catch (err) {
       toast(err.message);
     }
   });
 }
+
+const esc = (s = "") => String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+const attr = (s = "") => esc(s).replace(/"/g, "&quot;");

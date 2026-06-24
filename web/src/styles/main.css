@@ -111,104 +111,102 @@ img, video { max-width: 100%; display: block; }
 .library-intro h1 em { font-style: italic; color: var(--accent); }
 .library-intro p { color: var(--text-soft); margin-top: 1rem; max-width: 40ch; }
 
+/* One wrapping container; spines flow across as many rows as the width allows.
+   A repeating-gradient draws a shelf-board line under EVERY row (rows are a
+   fixed --row-h tall so the lines align). */
 .shelf {
+  --row-h: 472px;
   position: relative;
   display: flex;
-  align-items: flex-end;
   flex-wrap: wrap;
-  gap: 3px;
-  padding-bottom: 14px;
-  margin-bottom: var(--shelf-gap);
-  min-height: 200px;
+  align-items: flex-end;
+  column-gap: clamp(8px, 1.4vw, 22px);
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(var(--row-h) - 2px),
+    var(--ink-600) calc(var(--row-h) - 2px),
+    var(--ink-500) calc(var(--row-h) - 1px),
+    transparent calc(var(--row-h) - 1px),
+    transparent var(--row-h)
+  );
 }
-/* the shelf board: a minimal line, not skeuomorphic wood */
-.shelf::after {
-  content: "";
-  position: absolute; left: 0; right: 0; bottom: 0;
-  height: 1px;
-  background: linear-gradient(to right, transparent, var(--ink-600) 8%, var(--ink-500) 50%, var(--ink-600) 92%, transparent);
-  box-shadow: 0 1px 0 var(--ink-900), 0 6px 18px -8px rgba(0,0,0,0.8);
+.slot {
+  height: var(--row-h);
+  display: flex;
+  align-items: flex-end;   /* books sit on the shelf line */
+  padding-bottom: 2px;
 }
 
-/* ---- Book spine ---- */
+/* ---- Volume spine: screenshot cover + color wash + title at the foot ---- */
 .spine {
   position: relative;
   flex: 0 0 auto;
-  width: var(--spine-w, 34px);
-  height: var(--spine-h, 180px);
-  background: var(--spine-color, #3a4a44);
-  border-radius: 2px 2px 1px 1px;
+  width: var(--spine-w, 150px);
+  height: var(--spine-h, 420px);
+  background: #08090d;
+  border-radius: 3px;
   cursor: pointer;
   overflow: hidden;
   transform-origin: bottom center;
-  transition: transform 0.28s var(--ease), box-shadow 0.28s var(--ease), filter 0.28s;
-  box-shadow:
-    inset 2px 0 4px rgba(255,255,255,0.06),
-    inset -3px 0 6px rgba(0,0,0,0.45),
-    0 4px 10px -4px rgba(0,0,0,0.6);
+  transition: transform 0.32s var(--ease), box-shadow 0.32s var(--ease);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04), 0 8px 22px -10px rgba(0,0,0,0.7);
 }
 .spine:hover, .spine:focus-visible {
-  transform: translateY(-12px);
-  box-shadow:
-    inset 2px 0 4px rgba(255,255,255,0.08),
-    inset -3px 0 6px rgba(0,0,0,0.45),
-    0 16px 28px -10px rgba(0,0,0,0.8),
-    var(--accent-glow);
+  transform: translateY(-14px);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.09), 0 26px 46px -16px rgba(0,0,0,0.85), var(--accent-glow);
   outline: none;
 }
-/* foil accent bands near top & bottom of spine */
-.spine::before {
-  content: "";
-  position: absolute; left: 4px; right: 4px; top: 14px;
-  height: 1px; background: var(--spine-foil, var(--accent-warm)); opacity: 0.7;
-  box-shadow: 0 24px 0 var(--spine-foil, var(--accent-warm));
-}
-.spine-title {
+.spine:hover .spine-cover { opacity: 0.95; }
+.spine:hover .spine-enter { opacity: 1; }
+
+/* cover: rich gradient by default; the webpage screenshot when available */
+.spine-cover {
   position: absolute; inset: 0;
-  /* read top → bottom; anchor to the top so long titles truncate (…) at the tail
-     instead of being clipped at both ends */
-  display: flex; align-items: center; justify-content: flex-start;
-  writing-mode: vertical-rl;
-  padding: 16px 0 22px;            /* leave room for the score at the foot */
-  font-family: var(--font-display);
-  font-size: 0.7rem;
-  font-weight: 500;
-  letter-spacing: 0.01em;
-  color: var(--spine-text, #f3ece0);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  text-shadow: 0 1px 1px rgba(0,0,0,0.4);
+  background-image: var(--spine-grad);
+  background-size: cover; background-position: top center;
+  transition: opacity 0.32s var(--ease);
 }
+.spine--shot .spine-cover { background-image: var(--spine-shot); opacity: 0.88; }
+
+/* color wash over a screenshot (clear middle, color at the foot) */
+.spine-tint { display: none; }
+.spine--shot .spine-tint {
+  display: block; position: absolute; inset: 0;
+  background: var(--spine-wash); pointer-events: none;
+}
+
 .spine-score {
-  position: absolute; bottom: 5px; left: 0; right: 0;
-  text-align: center;
-  font-family: var(--font-mono);
-  font-size: 0.55rem;
-  color: var(--spine-text, #f3ece0);
-  opacity: 0.65;
+  position: absolute; top: 12px; left: 0; right: 0; text-align: center;
+  font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.06em;
+  color: var(--spine-text, #f3ece0); opacity: 0.7;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.75);
 }
+.spine-foot {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 16px 12px 18px; text-align: center;
+  color: var(--spine-text, #f3ece0); text-shadow: 0 1px 5px rgba(0,0,0,0.85);
+}
+.spine-vol { font-family: var(--font-mono); font-size: 0.54rem; letter-spacing: 0.22em; text-transform: uppercase; opacity: 0.6; }
+.spine-title {
+  font-family: var(--font-display); font-style: italic; font-weight: 500;
+  font-size: 1.04rem; line-height: 1.12;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.spine-by { font-family: var(--font-mono); font-size: 0.56rem; letter-spacing: 0.04em; opacity: 0.55; margin-top: 2px; }
+.spine-enter { font-family: var(--font-mono); font-size: 0.54rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--accent); opacity: 0; transition: opacity 0.3s var(--ease); margin-top: 6px; }
 
 /* ---- The [+] create spine ---- */
 .spine--add {
-  background: transparent;
-  border: 1px dashed var(--ink-500);
-  box-shadow: none;
-  display: flex; align-items: center; justify-content: center;
+  background: transparent; border: 1px dashed var(--ink-500); box-shadow: none;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
 }
-.spine--add::before { content: none; } /* no foil bands on the create box */
-.spine--add:hover {
-  border-color: var(--accent);
-  box-shadow: var(--accent-glow);
-  transform: translateY(-12px);
-}
-.spine--add .plus {
-  font-family: var(--font-mono);
-  font-size: 1.5rem;
-  color: var(--text-faint);
-  writing-mode: vertical-rl;
-}
-.spine--add:hover .plus { color: var(--accent); }
+.spine--add:hover { border-color: var(--accent); box-shadow: var(--accent-glow); transform: translateY(-14px); }
+.spine--add .plus { font-family: var(--font-mono); font-size: 2.4rem; color: var(--text-faint); }
+.spine--add .spine-foot { position: static; padding: 0; }
+.spine--add .spine-title { font-style: italic; opacity: 0.7; }
+.spine--add:hover .plus, .spine--add:hover .spine-title { color: var(--accent); }
 
 /* ============================================================
    Opened book overlay
@@ -262,6 +260,8 @@ img, video { max-width: 100%; display: block; }
   margin-bottom: 0.5rem;
 }
 .book .byline { font-family: var(--font-mono); font-size: 0.72rem; color: var(--paper-ink-soft); letter-spacing: 0.04em; text-transform: uppercase; }
+.link-btn { font: inherit; color: var(--accent-dim); border-bottom: 1px solid transparent; }
+.link-btn:hover { border-color: var(--accent-dim); }
 .book .desc { margin-top: 1.25rem; color: #3a352d; max-width: 42ch; }
 .book .links { margin-top: 1.5rem; display: flex; flex-direction: column; gap: 0.5rem; }
 .book .links a {
@@ -360,5 +360,8 @@ img, video { max-width: 100%; display: block; }
   .book::before { display: none; }
   .page--left { border-right: none; border-bottom: 1px solid var(--paper-shadow); }
   .brand .tag { display: none; }
-  .spine { --spine-w: 30px; --spine-h: 150px; }
+  /* smaller volumes + shorter rows on phones */
+  .shelf { --row-h: 340px; }
+  .spine { width: clamp(116px, 42vw, 150px) !important; height: clamp(300px, 78vw, 340px) !important; }
+  .spine-title { font-size: 0.92rem; }
 }

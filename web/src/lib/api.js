@@ -48,6 +48,15 @@ export const api = {
     }
     return req("/projects", { method: "POST", body: data, auth: true });
   },
+  async updateProject(id, data) {
+    if (MOCK_MODE) {
+      const p = mockStore.find((x) => x.id === id);
+      if (!p) throw new Error("Not found");
+      Object.assign(p, data);
+      return structuredClone(p);
+    }
+    return req(`/projects/${id}`, { method: "PATCH", body: data, auth: true });
+  },
 
   /* --- voting (anon: 1 per IP server-side; logged-in: may add a note) --- */
   async vote(id, dir, note) {

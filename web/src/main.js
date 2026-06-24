@@ -3,7 +3,7 @@ import { api, MOCK_MODE } from "./lib/api.js";
 import { initCircuits } from "./components/circuits.js";
 import { renderShelves } from "./components/shelf.js";
 import { openBook, bindCircuits } from "./components/book.js";
-import { renderHeader, openAuth, openSubmit } from "./components/auth.js";
+import { renderHeader, openAuth, openProjectForm } from "./components/auth.js";
 import { toast } from "./lib/toast.js";
 
 const els = {
@@ -27,8 +27,12 @@ try {
 function paintShelves() {
   renderShelves(els.shelves, state.projects, {
     showCreate: !!state.session,
-    onOpen: (id) => openBook(els.book, id, { session: state.session, onAuthNeeded: () => openAuth(els.modal, "signup", setSession) }),
-    onCreate: () => openSubmit(els.modal, onCreated),
+    onOpen: (id) => openBook(els.book, id, {
+      session: state.session,
+      onAuthNeeded: () => openAuth(els.modal, "signup", setSession),
+      onEdit: (project) => openProjectForm(els.modal, { project, onSaved: onUpdated }),
+    }),
+    onCreate: () => openProjectForm(els.modal, { onSaved: onCreated }),
   });
 }
 
@@ -36,7 +40,7 @@ function paintHeader() {
   renderHeader(els.nav, state.session, {
     modal: els.modal,
     onSession: setSession,
-    onCreate: () => openSubmit(els.modal, onCreated),
+    onCreate: () => openProjectForm(els.modal, { onSaved: onCreated }),
   });
 }
 
@@ -48,6 +52,12 @@ function setSession(user) {
 
 function onCreated(project) {
   state.projects.unshift(project);
+  paintShelves();
+}
+
+function onUpdated(project) {
+  const i = state.projects.findIndex((p) => p.id === project.id);
+  if (i >= 0) state.projects[i] = project; else state.projects.unshift(project);
   paintShelves();
 }
 

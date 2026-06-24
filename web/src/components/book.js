@@ -6,19 +6,20 @@ import { toast } from "../lib/toast.js";
 let circuits = null;
 export function bindCircuits(c) { circuits = c; }
 
-export async function openBook(overlay, id, { session, onAuthNeeded } = {}) {
+export async function openBook(overlay, id, { session, onAuthNeeded, onEdit } = {}) {
   const project = await api.getProject(id);
   if (!project) return;
 
   const score = (project.up || 0) - (project.down || 0);
   const loggedIn = !!session;
+  const isOwner = loggedIn && session.username?.toLowerCase() === project.author?.toLowerCase();
 
   overlay.innerHTML = `
     <div class="book" role="document">
       <button class="book-close" aria-label="Close">✕</button>
 
       <section class="page page--left">
-        <p class="byline">vibe-coded by ${escape(project.author)}</p>
+        <p class="byline">vibe-coded by ${escape(project.author)}${isOwner ? ` · <button class="link-btn" data-edit>✎ edit</button>` : ""}</p>
         <h2>${escape(project.title)}</h2>
         <p class="desc">${escape(project.description || "No description supplied.")}</p>
         ${renderLinks(project.links)}
@@ -57,6 +58,7 @@ export async function openBook(overlay, id, { session, onAuthNeeded } = {}) {
   overlay.querySelector(".book-close").addEventListener("click", close);
   overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
   overlay.querySelector("[data-auth]")?.addEventListener("click", (e) => { e.preventDefault(); close(); onAuthNeeded?.(); });
+  overlay.querySelector("[data-edit]")?.addEventListener("click", () => { close(); onEdit?.(project); });
 
   overlay.querySelectorAll(".vote-btn").forEach((btn) =>
     btn.addEventListener("click", async () => {

@@ -20,6 +20,7 @@
 import { hashPassword, signJWT, verifyJWT, randomHex } from "./lib/crypto.js";
 import { json, cors, httpError, clientIP, safeJSON, validateCreds, hashArrayToObject, allowedOrigin } from "./lib/util.js";
 import { consume, reserveStorage, usageToday } from "./lib/quota.js";
+import { sanitizeProjectEdits, editsToHSET } from "./lib/project.js";
 
 export default {
   async fetch(request, env, ctx) {
@@ -60,6 +61,7 @@ async function route(request, env, ctx) {
   if (path === "/projects" && m === "GET") return listProjects(env);
   if (path === "/projects" && m === "POST") return createProject(request, env);
   if (seg[0] === "projects" && seg[1] && !seg[2] && m === "GET") return getProject(seg[1], env);
+  if (seg[0] === "projects" && seg[1] && !seg[2] && m === "PATCH") return editProject(seg[1], request, env);
   if (seg[0] === "projects" && seg[1] && seg[2] === "vote" && m === "POST") return vote(seg[1], request, env);
   if (seg[0] === "projects" && seg[1] && seg[2] === "media" && m === "POST") return uploadMedia(seg[1], request, env);
 
@@ -153,27 +155,38 @@ async function readProject(id, env) {
 async function createProject(request, env) {
   const username = await requireUser(request, env);
   const body = await request.json();
-  const title = String(body.title || "").trim().slice(0, 80);
-  if (!title) throw httpError("Title required", 400);
+  // title is required on create; reuse the shared sanitizer for the rest.
+  const fields = sanitizeProjectEdits({ title: body.title, description: body.description ?? "", links: body.links ?? [], coverColor: body.coverColor ?? "" });
+  if (!fields.title) throw httpError("Title required", 400);
 
   const id = randomHex(8);
   const now = Date.now();
   await redis(env, ["HSET", `project:${id}`,
-    "title", title,
+    ...editsToHSET(fields),
     "author", username,
-    "description", String(body.description || "").slice(0, 600),
-    "links", JSON.stringify(Array.isArray(body.links) ? body.links.slice(0, 6) : []),
     "media", JSON.stringify([]),
-    "coverColor", body.coverColor || "",
-    "coverSeed", body.coverSeed || title,
+    "coverSeed", body.coverSeed || fields.title,
     "up", "0", "down", "0", "created", now.toString(),
   ]);
   await Promise.all([
-    redis(env, ["ZADD", "projects:byScore", "0", id]),
+    redis(env, ["ZADD", "projects:byScore", "0", id]), // score = upvotes (0 at creation)
     redis(env, ["ZADD", "projects:byNew", now.toString(), id]),
     redis(env, ["SADD", `user:${username.toLowerCase()}:projects`, id]),
   ]);
   return json(await readProject(id, env), 201);
+}
+
+// Edit a project you own (partial update of title/description/links/coverColor).
+async function editProject(id, request, env) {
+  const username = await requireUser(request, env);
+  const existing = await readProject(id, env);
+  if (!existing) throw httpError("Not found", 404);
+  if (existing.author.toLowerCase() !== username.toLowerCase()) throw httpError("Not your project", 403);
+
+  const edits = sanitizeProjectEdits(await request.json());
+  const fields = editsToHSET(edits);
+  if (fields.length) await redis(env, ["HSET", `project:${id}`, ...fields]);
+  return json(await readProject(id, env));
 }
 
 async function myProjects(request, env) {
@@ -214,7 +227,8 @@ async function vote(id, request, env) {
   }
 
   const [up, down] = await redis(env, ["HMGET", `project:${id}`, "up", "down"]);
-  await redis(env, ["ZADD", "projects:byScore", String(Number(up) - Number(down)), id]);
+  // Shelf is ordered by upvote count (highest first).
+  await redis(env, ["ZADD", "projects:byScore", String(Number(up)), id]);
   return json({ up: Number(up), down: Number(down), note: note || null });
 }
 

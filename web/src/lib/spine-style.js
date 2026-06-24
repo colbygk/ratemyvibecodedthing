@@ -36,15 +36,29 @@ export function spineStyle(project) {
   // Use unsigned shifts (>>>): the hash can exceed 2^31, and signed >> would
   // go negative and push width/height out of their intended ranges.
   const foil = FOIL[(h >>> 8) % FOIL.length];
-  const width = 28 + ((h >>> 3) % 22);          // 28–49px
-  const height = 150 + ((h >>> 5) % 70);        // 150–219px
+  const width = 140 + ((h >>> 3) % 40);          // 140–179px (large "volume" panels)
+  const height = 380 + ((h >>> 5) % 80);         // 380–459px
+  // Rich gradient (not flat): dark crown → color wash at the foot. Used as the
+  // cover when there's no screenshot, and as a tint over screenshots.
+  const grad = `linear-gradient(180deg, #08090d 0%, ${cloth.bg}1f 42%, ${cloth.bg}cc 100%)`;
+  // wash sits OVER a screenshot: faint dark crown (score legibility), clear
+  // middle (screenshot shows), color at the foot (title legibility).
+  const wash = `linear-gradient(180deg, rgba(8,9,13,0.6) 0%, rgba(8,9,13,0) 20%, rgba(8,9,13,0) 40%, ${cloth.bg}80 72%, ${cloth.bg}f2 100%)`;
   return {
     "--spine-color": cloth.bg,
     "--spine-text": cloth.text,
     "--spine-foil": foil,
+    "--spine-grad": grad,
+    "--spine-wash": wash,
     "--spine-w": `${width}px`,
     "--spine-h": `${height}px`,
   };
+}
+
+// mShots (free, no key, server-cached) screenshot of a project URL → spine cover.
+export function shotURL(url, w = 360, h = 520) {
+  if (!url) return null;
+  return `https://s0.wp.com/mshots/v1/${encodeURIComponent(url)}?w=${w}&h=${h}`;
 }
 
 function pickText(hex) {

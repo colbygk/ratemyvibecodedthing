@@ -15,7 +15,7 @@ export function httpError(message, status = 400) {
 export function cors(res, origin) {
   const h = new Headers(res.headers);
   h.set("Access-Control-Allow-Origin", origin);
-  h.set("Access-Control-Allow-Methods", "GET,POST,DELETE,OPTIONS");
+  h.set("Access-Control-Allow-Methods", "GET,POST,PATCH,DELETE,OPTIONS");
   h.set("Access-Control-Allow-Headers", "Content-Type,Authorization");
   h.set("Vary", "Origin");
   return new Response(res.body, { status: res.status, headers: h });

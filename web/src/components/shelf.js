@@ -1,29 +1,26 @@
-// Renders projects as book spines, grouped into shelves.
-import { spineStyle } from "../lib/spine-style.js";
-
-const PER_SHELF = 22; // wraps responsively anyway; this just chunks shelf boards
+// Renders projects as large "volume" spines that flow responsively across rows,
+// each backed by an auto-snapshot of the project's webpage (mShots) tinted with
+// the chosen color, with the title set at the foot (à la "Since You Arrived").
+import { spineStyle, shotURL } from "../lib/spine-style.js";
 
 export function renderShelves(container, projects, { onOpen, onCreate, showCreate } = {}) {
   container.innerHTML = "";
-  const items = [...projects];
+  const shelf = document.createElement("div");
+  shelf.className = "shelf";
 
-  // chunk into shelves
-  const shelves = [];
-  for (let i = 0; i < items.length; i += PER_SHELF) shelves.push(items.slice(i, i + PER_SHELF));
-  if (!shelves.length) shelves.push([]);
+  if (showCreate) shelf.appendChild(slot(createAddSpine(onCreate)));
+  for (const p of projects) shelf.appendChild(slot(createSpine(p, onOpen)));
 
-  shelves.forEach((group, idx) => {
-    const shelf = document.createElement("div");
-    shelf.className = "shelf";
+  container.appendChild(shelf);
+}
 
-    // the create spine lives at the front of the first shelf when logged in
-    if (idx === 0 && showCreate) {
-      shelf.appendChild(createAddSpine(onCreate));
-    }
-
-    for (const p of group) shelf.appendChild(createSpine(p, onOpen));
-    container.appendChild(shelf);
-  });
+// fixed-height slot → every wrapped row gets the same baseline, so the repeating
+// shelf-board line (drawn in CSS on .shelf) lines up under each row.
+function slot(child) {
+  const s = document.createElement("div");
+  s.className = "slot";
+  s.appendChild(child);
+  return s;
 }
 
 function createSpine(project, onOpen) {
@@ -33,15 +30,23 @@ function createSpine(project, onOpen) {
   el.setAttribute("aria-label", `Open “${project.title}” by ${project.author}`);
   Object.entries(spineStyle(project)).forEach(([k, v]) => el.style.setProperty(k, v));
 
-  const title = document.createElement("span");
-  title.className = "spine-title";
-  title.textContent = project.title;
+  const shot = shotURL(project.links?.[0]?.url);
+  if (shot) {
+    el.classList.add("spine--shot");
+    el.style.setProperty("--spine-shot", `url("${shot}")`);
+  }
 
-  const score = document.createElement("span");
-  score.className = "spine-score";
-  score.textContent = `${(project.up || 0) - (project.down || 0) >= 0 ? "+" : ""}${(project.up || 0) - (project.down || 0)}`;
-
-  el.append(title, score);
+  const net = (project.up || 0) - (project.down || 0);
+  el.innerHTML = `
+    <span class="spine-cover" aria-hidden="true"></span>
+    <span class="spine-tint" aria-hidden="true"></span>
+    <span class="spine-score">${net >= 0 ? "+" : ""}${net}</span>
+    <span class="spine-foot">
+      <span class="spine-vol">vol.</span>
+      <span class="spine-title">${escape(project.title)}</span>
+      <span class="spine-by">by ${escape(project.author)}</span>
+      <span class="spine-enter">open</span>
+    </span>`;
   el.addEventListener("click", () => onOpen?.(project.id));
   return el;
 }
@@ -50,13 +55,14 @@ function createAddSpine(onCreate) {
   const el = document.createElement("button");
   el.className = "spine spine--add";
   el.type = "button";
-  el.style.setProperty("--spine-w", "44px");
-  el.style.setProperty("--spine-h", "200px");
+  el.style.setProperty("--spine-w", "150px");
+  el.style.setProperty("--spine-h", "420px");
   el.setAttribute("aria-label", "Submit a new vibe-coded project");
-  const plus = document.createElement("span");
-  plus.className = "plus";
-  plus.textContent = "+";
-  el.appendChild(plus);
+  el.innerHTML = `<span class="plus">+</span><span class="spine-foot"><span class="spine-title">add a thing</span></span>`;
   el.addEventListener("click", () => onCreate?.());
   return el;
+}
+
+function escape(s = "") {
+  return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
