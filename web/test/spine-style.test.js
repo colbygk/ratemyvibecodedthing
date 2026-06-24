@@ -19,10 +19,10 @@ describe("spineStyle", () => {
       const s = spineStyle({ id: `seed-${i}` });
       const w = parseInt(s["--spine-w"], 10);
       const h = parseInt(s["--spine-h"], 10);
-      expect(w).toBeGreaterThanOrEqual(140);
-      expect(w).toBeLessThanOrEqual(180);
-      expect(h).toBeGreaterThanOrEqual(380);
-      expect(h).toBeLessThanOrEqual(460);
+      expect(w).toBeGreaterThanOrEqual(160);
+      expect(w).toBeLessThanOrEqual(200);
+      expect(h).toBeGreaterThanOrEqual(460);
+      expect(h).toBeLessThanOrEqual(550);
     }
   });
 

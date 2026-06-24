@@ -27,6 +27,12 @@ export async function openBook(overlay, id, { session, onAuthNeeded, onEdit } = 
 
       <section class="page page--right">
         ${renderMedia(project.media)}
+        ${isOwner
+          ? `<div class="media-upload">
+               <label class="link-btn" for="media-file">＋ add image / video</label>
+               <input id="media-file" type="file" accept="image/*,video/*" hidden />
+             </div>`
+          : ""}
         <div class="vote-block">
           <div class="vote-row">
             <button class="vote-btn" data-dir="up" aria-label="Upvote">▲ <span class="up">${project.up || 0}</span></button>
@@ -59,6 +65,22 @@ export async function openBook(overlay, id, { session, onAuthNeeded, onEdit } = 
   overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
   overlay.querySelector("[data-auth]")?.addEventListener("click", (e) => { e.preventDefault(); close(); onAuthNeeded?.(); });
   overlay.querySelector("[data-edit]")?.addEventListener("click", () => { close(); onEdit?.(project); });
+
+  const fileInput = overlay.querySelector("#media-file");
+  fileInput?.addEventListener("change", async () => {
+    const file = fileInput.files?.[0];
+    if (!file) return;
+    toast("Uploading…");
+    try {
+      const res = await api.uploadMedia(id, file);
+      overlay.querySelector(".media-grid").outerHTML = renderMedia(res.media);
+      toast("Media added");
+    } catch (err) {
+      toast(err.message);
+    } finally {
+      fileInput.value = "";
+    }
+  });
 
   overlay.querySelectorAll(".vote-btn").forEach((btn) =>
     btn.addEventListener("click", async () => {

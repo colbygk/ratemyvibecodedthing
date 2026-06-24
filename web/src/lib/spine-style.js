@@ -36,8 +36,8 @@ export function spineStyle(project) {
   // Use unsigned shifts (>>>): the hash can exceed 2^31, and signed >> would
   // go negative and push width/height out of their intended ranges.
   const foil = FOIL[(h >>> 8) % FOIL.length];
-  const width = 140 + ((h >>> 3) % 40);          // 140–179px (large "volume" panels)
-  const height = 380 + ((h >>> 5) % 80);         // 380–459px
+  const width = 160 + ((h >>> 3) % 40);          // 160–199px (large "volume" panels)
+  const height = 460 + ((h >>> 5) % 90);         // 460–549px (taller volumes)
   // Rich gradient (not flat): dark crown → color wash at the foot. Used as the
   // cover when there's no screenshot, and as a tint over screenshots.
   const grad = `linear-gradient(180deg, #08090d 0%, ${cloth.bg}1f 42%, ${cloth.bg}cc 100%)`;

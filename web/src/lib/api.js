@@ -58,6 +58,26 @@ export const api = {
     return req(`/projects/${id}`, { method: "PATCH", body: data, auth: true });
   },
 
+  /* --- media (R2): POST the raw file as the body; type drives image vs video --- */
+  async uploadMedia(id, file) {
+    if (MOCK_MODE) {
+      const p = mockStore.find((x) => x.id === id);
+      if (!p) throw new Error("Not found");
+      const kind = (file.type || "").startsWith("video/") ? "video" : "image";
+      p.media = p.media || [];
+      p.media.push({ type: kind, url: `mock:${file.name || "media"}` });
+      return { media: structuredClone(p.media) };
+    }
+    const headers = { "Content-Type": file.type || "application/octet-stream" };
+    if (getToken()) headers.Authorization = `Bearer ${getToken()}`;
+    const res = await fetch(`${BASE}/projects/${id}/media`, { method: "POST", headers, body: file });
+    if (!res.ok) {
+      const msg = await res.json().catch(() => ({}));
+      throw new Error(msg.error || `Upload failed (${res.status})`);
+    }
+    return res.json();
+  },
+
   /* --- voting (anon: 1 per IP server-side; logged-in: may add a note) --- */
   async vote(id, dir, note) {
     if (MOCK_MODE) {

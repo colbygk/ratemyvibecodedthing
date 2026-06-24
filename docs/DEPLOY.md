@@ -6,12 +6,12 @@
 |-------|-------|
 | GitHub repo | `colbygk/ratemyvibecodedthing` (public) |
 | CI (tests) | runs on every push/PR |
-| GitHub Pages | enabled, **Actions** source, custom domain `ratemyvibecodedthing.ai` |
+| GitHub Pages | enabled, **Actions** source, custom domain `ratemyvibecodedthing.ai`, **HTTPS enforced** |
 | Frontend | deployed (mock mode until `VITE_API_BASE` is set) |
-| Cloudflare Worker | **not yet deployed** (needs `wrangler login` + secrets) |
-| Upstash Redis | **not yet created** |
-| R2 bucket | **not yet created** |
-| DNS | **not yet configured** |
+| Cloudflare Worker | **deployed** |
+| Upstash Redis | created + wired |
+| R2 bucket | **`rmvct-media` created, MEDIA binding live** |
+| DNS | **configured** (apex → GitHub Pages) |
 
 ## 1. DNS — point the apex at GitHub Pages
 

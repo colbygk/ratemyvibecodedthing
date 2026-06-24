@@ -52,4 +52,14 @@ describe("api (mock mode)", () => {
     expect(list[0].title).toBe("Brand New Thing");
     expect(created.author).toBe("nova");
   });
+
+  it("appends uploaded media to a project (mock)", async () => {
+    await api.signup("nova", "secret");
+    const created = await api.createProject({ title: "Has Media" });
+    const res = await api.uploadMedia(created.id, { name: "demo.mp4", type: "video/mp4", size: 2048 });
+    expect(res.media).toHaveLength(1);
+    expect(res.media[0].type).toBe("video");
+    const fetched = await api.getProject(created.id);
+    expect(fetched.media).toHaveLength(1);
+  });
 });

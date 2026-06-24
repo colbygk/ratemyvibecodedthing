@@ -115,7 +115,7 @@ img, video { max-width: 100%; display: block; }
    A repeating-gradient draws a shelf-board line under EVERY row (rows are a
    fixed --row-h tall so the lines align). */
 .shelf {
-  --row-h: 472px;
+  --row-h: 562px;
   position: relative;
   display: flex;
   flex-wrap: wrap;
@@ -142,8 +142,8 @@ img, video { max-width: 100%; display: block; }
 .spine {
   position: relative;
   flex: 0 0 auto;
-  width: var(--spine-w, 150px);
-  height: var(--spine-h, 420px);
+  width: var(--spine-w, 170px);
+  height: var(--spine-h, 500px);
   background: #08090d;
   border-radius: 3px;
   cursor: pointer;
@@ -273,6 +273,8 @@ img, video { max-width: 100%; display: block; }
 
 .media-grid { display: grid; gap: 0.5rem; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); margin-bottom: 1.25rem; }
 .media-grid img, .media-grid video { border-radius: var(--radius-sm); aspect-ratio: 4/3; object-fit: cover; width: 100%; }
+.media-upload { margin: -0.5rem 0 1rem; }
+.media-upload .link-btn { font-family: var(--font-mono); font-size: 0.72rem; cursor: pointer; }
 
 /* voting block */
 .vote-block { margin-top: auto; padding-top: 1.25rem; border-top: 1px solid var(--paper-shadow); }
@@ -361,7 +363,7 @@ img, video { max-width: 100%; display: block; }
   .page--left { border-right: none; border-bottom: 1px solid var(--paper-shadow); }
   .brand .tag { display: none; }
   /* smaller volumes + shorter rows on phones */
-  .shelf { --row-h: 340px; }
-  .spine { width: clamp(116px, 42vw, 150px) !important; height: clamp(300px, 78vw, 340px) !important; }
+  .shelf { --row-h: 432px; }
+  .spine { width: clamp(128px, 44vw, 170px) !important; height: clamp(360px, 84vw, 420px) !important; }
   .spine-title { font-size: 0.92rem; }
 }

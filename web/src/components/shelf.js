@@ -55,8 +55,8 @@ function createAddSpine(onCreate) {
   const el = document.createElement("button");
   el.className = "spine spine--add";
   el.type = "button";
-  el.style.setProperty("--spine-w", "150px");
-  el.style.setProperty("--spine-h", "420px");
+  el.style.setProperty("--spine-w", "170px");
+  el.style.setProperty("--spine-h", "500px");
   el.setAttribute("aria-label", "Submit a new vibe-coded project");
   el.innerHTML = `<span class="plus">+</span><span class="spine-foot"><span class="spine-title">add a thing</span></span>`;
   el.addEventListener("click", () => onCreate?.());

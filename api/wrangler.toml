@@ -3,9 +3,10 @@ main = "src/index.js"
 compatibility_date = "2024-11-01"
 
 # Allowed CORS origins (comma-separated). The Worker reflects whichever matches
-# the request — covers http during cert provisioning, https after, and dev.
+# the request. HTTPS is now enforced on the apex, so the insecure http:// origin
+# has been dropped; localhost stays for dev (vite 5173 / preview 4173).
 [vars]
-ALLOWED_ORIGIN = "https://ratemyvibecodedthing.ai,http://ratemyvibecodedthing.ai,http://localhost:5173,http://localhost:4173"
+ALLOWED_ORIGIN = "https://ratemyvibecodedthing.ai,http://localhost:5173,http://localhost:4173"
 # Daily usage caps (graceful 429 when exceeded). Defaults live in src/lib/quota.js;
 # uncomment to override. See docs/COST.md.
 # LIMIT_REQUEST = "20000"
@@ -15,13 +16,11 @@ ALLOWED_ORIGIN = "https://ratemyvibecodedthing.ai,http://ratemyvibecodedthing.ai
 # MAX_UPLOAD_BYTES = "26214400"      # 25 MB
 
 # ---- Cloudflare R2 bucket for user-uploaded images/video ----
-# DEFERRED: R2 not yet enabled on the account. To turn on media uploads:
-#   1) Enable R2 in the Cloudflare dashboard
-#   2) wrangler r2 bucket create rmvct-media
-#   3) uncomment the binding below and redeploy
-# [[r2_buckets]]
-# binding = "MEDIA"
-# bucket_name = "rmvct-media"
+# Enabled. Bucket created via `wrangler r2 bucket create rmvct-media`.
+# The MEDIA binding powers uploadMedia()/serveMedia() in src/index.js.
+[[r2_buckets]]
+binding = "MEDIA"
+bucket_name = "rmvct-media"
 
 # ---- Secrets (set via `wrangler secret put <NAME>`; do NOT commit) ----
 #   UPSTASH_REDIS_REST_URL    e.g. https://xxxx.upstash.io
