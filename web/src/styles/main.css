@@ -165,16 +165,16 @@ img, video { max-width: 100%; display: block; }
 }
 .spine-title {
   position: absolute; inset: 0;
-  display: flex; align-items: center; justify-content: center;
+  /* read top → bottom; anchor to the top so long titles truncate (…) at the tail
+     instead of being clipped at both ends */
+  display: flex; align-items: center; justify-content: flex-start;
   writing-mode: vertical-rl;
-  transform: rotate(180deg);
-  padding: 22px 0;
+  padding: 16px 0 22px;            /* leave room for the score at the foot */
   font-family: var(--font-display);
-  font-size: 0.82rem;
+  font-size: 0.7rem;
   font-weight: 500;
   letter-spacing: 0.01em;
   color: var(--spine-text, #f3ece0);
-  text-align: center;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -196,6 +196,7 @@ img, video { max-width: 100%; display: block; }
   box-shadow: none;
   display: flex; align-items: center; justify-content: center;
 }
+.spine--add::before { content: none; } /* no foil bands on the create box */
 .spine--add:hover {
   border-color: var(--accent);
   box-shadow: var(--accent-glow);
