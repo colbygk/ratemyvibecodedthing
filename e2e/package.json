@@ -1,0 +1,11 @@
+{
+  "name": "rmvct-e2e",
+  "private": true,
+  "description": "Dockerized end-to-end / system tests (Playwright) for ratemyvibecodedthing.ai.",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0"
+  }
+}

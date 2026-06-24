@@ -1,0 +1,155 @@
+# Local dev + testing, all in Docker. Nothing here touches production or any
+# Cloudflare/Upstash account — Redis is a local container behind an Upstash-REST
+# shim, and R2 is simulated by wrangler/Miniflare on disk.
+#
+#   Dev stack:   docker compose --profile dev up
+#   Unit tests:  docker compose run --rm web-unit   (and api-unit)
+#   E2E/system:  docker compose --profile e2e up --abort-on-container-exit --exit-code-from playwright
+#
+# (The Makefile wraps these.)
+
+name: rmvct
+
+services:
+  # Plain Redis — the actual datastore.
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    networks: [rmvct]
+
+  # Upstash-compatible REST proxy in front of Redis. The Worker speaks Upstash's
+  # REST dialect, so this is what makes UPSTASH_REDIS_REST_URL work locally.
+  redis-rest:
+    image: hiett/serverless-redis-http:latest
+    environment:
+      SRH_MODE: env
+      SRH_TOKEN: local_dev_token
+      SRH_CONNECTION_STRING: redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks: [rmvct]
+
+  # The Cloudflare Worker via `wrangler dev` (local mode → R2 simulated on disk).
+  # --var injects the local-only Redis/JWT config and the allowed CORS origins.
+  api:
+    build:
+      context: ./api
+    environment:
+      CI: "true"
+      WRANGLER_SEND_METRICS: "false"
+    command:
+      - npm
+      - run
+      - dev
+      - "--"
+      - "--ip=0.0.0.0"
+      - "--port=8787"
+      - "--var=UPSTASH_REDIS_REST_URL:http://redis-rest:80"
+      - "--var=UPSTASH_REDIS_REST_TOKEN:local_dev_token"
+      - "--var=JWT_SECRET:local_dev_only_not_a_secret"
+      - "--var=ALLOWED_ORIGIN:http://localhost:5173,http://localhost:4173,http://web:5173,http://web-e2e:5173"
+    ports:
+      - "8787:8787"
+    volumes:
+      - ./api:/app
+      - api_node_modules:/app/node_modules
+      - api_wrangler_state:/app/.wrangler
+    depends_on:
+      redis-rest:
+        condition: service_started
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://localhost:8787/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 3s
+      timeout: 4s
+      retries: 40
+    networks: [rmvct]
+
+  # ---- human dev frontend: browser runs on the HOST, so it calls the API at the
+  # host-mapped localhost:8787 ----
+  web:
+    profiles: ["dev"]
+    build:
+      context: ./web
+    environment:
+      VITE_API_BASE: http://localhost:8787
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./web:/app
+      - web_node_modules:/app/node_modules
+    depends_on:
+      api:
+        condition: service_healthy
+    networks: [rmvct]
+
+  # ---- e2e frontend: browser runs INSIDE the playwright container, so it reaches
+  # the API by its compose hostname ----
+  web-e2e:
+    profiles: ["e2e"]
+    build:
+      context: ./web
+    environment:
+      VITE_API_BASE: http://api:8787
+    volumes:
+      - ./web:/app
+      - web_node_modules:/app/node_modules
+    depends_on:
+      api:
+        condition: service_healthy
+    networks: [rmvct]
+
+  playwright:
+    profiles: ["e2e"]
+    build:
+      context: ./e2e
+    environment:
+      E2E_BASE_URL: http://web-e2e:5173
+      E2E_API_URL: http://api:8787
+    volumes:
+      - ./e2e:/e2e
+      - e2e_node_modules:/e2e/node_modules
+    depends_on:
+      api:
+        condition: service_healthy
+      web-e2e:
+        condition: service_started
+    networks: [rmvct]
+
+  # ---- unit tests (no backend needed; run via `docker compose run`) ----
+  web-unit:
+    profiles: ["unit"]
+    build:
+      context: ./web
+    command: ["npm", "test"]
+    volumes:
+      - ./web:/app
+      - web_node_modules:/app/node_modules
+    networks: [rmvct]
+
+  api-unit:
+    profiles: ["unit"]
+    build:
+      context: ./api
+    command: ["npm", "test"]
+    volumes:
+      - ./api:/app
+      - api_node_modules:/app/node_modules
+    networks: [rmvct]
+
+volumes:
+  api_node_modules:
+  web_node_modules:
+  e2e_node_modules:
+  api_wrangler_state:
+
+networks:
+  rmvct:

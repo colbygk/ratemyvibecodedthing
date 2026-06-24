@@ -68,6 +68,22 @@ cd api && npm test     # PBKDF2 hashing, JWT sign/verify/expiry, validation, COR
 41 tests today. Two were red on first run and caught real bugs: signed-vs-unsigned
 bit-shift in spine sizing, and a 204-with-body misuse — both fixed.
 
+## Local stack with Docker (no host Node required)
+
+Everything — dev, unit tests, and end-to-end/system tests — runs in Docker. The
+Worker's Upstash Redis is served locally by a `redis` container behind an
+Upstash-REST shim (`serverless-redis-http`), and R2 is simulated by `wrangler dev`.
+No Cloudflare/Upstash account or secrets needed; production is never touched.
+
+```bash
+make dev     # full stack: web http://localhost:5173 → api http://localhost:8787
+make test    # all unit tests (web + api) in containers
+make e2e     # bring up the stack + run Playwright system tests, then exit
+make down    # stop everything and wipe local volumes
+```
+
+See **[docs/DOCKER.md](docs/DOCKER.md)** for the architecture and details.
+
 ## Run the frontend locally
 
 ```bash
