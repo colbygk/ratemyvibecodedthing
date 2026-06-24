@@ -6,6 +6,11 @@ import { MOCK_PROJECTS } from "./mock.js";
 const BASE = import.meta.env.VITE_API_BASE || "";
 export const MOCK_MODE = !BASE;
 
+// Media is served by the Worker and stored with a root-relative URL ("/media/..").
+// Resolve it against the API base so <img>/<video> hit the Worker, not the page
+// origin (GitHub Pages has no /media route → 404).
+export const mediaUrl = (u = "") => (u.startsWith("/") ? `${BASE}${u}` : u);
+
 const TOKEN_KEY = "rmvct_token";
 export const getToken = () => localStorage.getItem(TOKEN_KEY);
 export const setToken = (t) => (t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY));
@@ -123,4 +128,8 @@ export const api = {
   /* --- follow graph (Redis sets server-side) --- */
   async follow(username) { if (MOCK_MODE) return; return req(`/users/${username}/follow`, { method: "POST", auth: true }); },
   async unfollow(username) { if (MOCK_MODE) return; return req(`/users/${username}/follow`, { method: "DELETE", auth: true }); },
+  async graph(username) {
+    if (MOCK_MODE) return { username, followers: 0, following: 0 };
+    return req(`/users/${username}/graph`);
+  },
 };

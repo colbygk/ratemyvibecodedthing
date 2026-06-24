@@ -8,7 +8,9 @@ export function renderHeader(nav, session, handlers) {
     const hi = document.createElement("span");
     hi.className = "btn";
     hi.style.borderColor = "transparent";
-    hi.textContent = `@${session.username}`;
+    const fg = (session.following || []).length;
+    const fr = (session.followers || []).length;
+    hi.innerHTML = `@${session.username} <span class="follow-stats">${fg} following · ${fr} followers</span>`;
 
     const submit = mkBtn("+ submit", "btn btn--accent", handlers.onCreate);
     const out = mkBtn("log out", "btn", () => { api.logout(); handlers.onSession(null); toast("Logged out"); });

@@ -31,6 +31,8 @@ function paintShelves() {
       session: state.session,
       onAuthNeeded: () => openAuth(els.modal, "signup", setSession),
       onEdit: (project) => openProjectForm(els.modal, { project, onSaved: onUpdated }),
+      onVoted,
+      onFollow: (session) => { state.session = session; paintHeader(); },
     }),
     onCreate: () => openProjectForm(els.modal, { onSaved: onCreated }),
   });
@@ -58,6 +60,17 @@ function onCreated(project) {
 function onUpdated(project) {
   const i = state.projects.findIndex((p) => p.id === project.id);
   if (i >= 0) state.projects[i] = project; else state.projects.unshift(project);
+  paintShelves();
+}
+
+// After a vote: reflect the new tally on the shelf and re-sort by upvotes
+// (the server orders the shelf the same way), so the spine isn't stale.
+function onVoted({ id, up, down }) {
+  const p = state.projects.find((x) => x.id === id);
+  if (!p) return;
+  p.up = up;
+  p.down = down;
+  state.projects.sort((a, b) => (b.up || 0) - (a.up || 0));
   paintShelves();
 }
 

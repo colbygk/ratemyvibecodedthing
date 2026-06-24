@@ -275,6 +275,20 @@ img, video { max-width: 100%; display: block; }
 .media-upload { margin: -0.5rem 0 1rem; }
 .media-upload .link-btn { font-family: var(--font-mono); font-size: 0.72rem; cursor: pointer; }
 
+/* follow control on the (paper) left page */
+.follow-row { display: flex; align-items: center; gap: 0.6rem; margin: 0.1rem 0 0.9rem; }
+.follow-btn {
+  font-family: var(--font-mono); font-size: 0.74rem; letter-spacing: 0.02em;
+  padding: 0.28rem 0.85rem; border-radius: 999px; cursor: pointer;
+  background: transparent; color: var(--accent-dim); border: 1px solid var(--accent-dim);
+  transition: background 0.18s var(--ease), color 0.18s var(--ease);
+}
+.follow-btn:hover { background: var(--accent-dim); color: var(--paper); }
+.follow-btn.is-active { background: var(--accent-dim); color: var(--paper); border-color: transparent; }
+.follow-btn[disabled] { opacity: 0.5; cursor: default; }
+.follow-count { font-family: var(--font-mono); font-size: 0.72rem; color: var(--paper-ink-soft); }
+.follow-stats { font-family: var(--font-mono); font-size: 0.62rem; opacity: 0.6; letter-spacing: 0.02em; }
+
 /* voting block */
 .vote-block { margin-top: auto; padding-top: 1.25rem; border-top: 1px solid var(--paper-shadow); }
 .vote-row { display: flex; align-items: center; gap: 1rem; }

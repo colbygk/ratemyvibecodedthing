@@ -53,6 +53,20 @@ describe("api (mock mode)", () => {
     expect(created.author).toBe("nova");
   });
 
+  it("exposes follow graph + follow/unfollow without throwing (mock)", async () => {
+    await api.signup("nova", "secret");
+    expect(await api.graph("byte_baker")).toMatchObject({ username: "byte_baker", followers: 0, following: 0 });
+    await expect(api.follow("byte_baker")).resolves.toBeUndefined();
+    await expect(api.unfollow("byte_baker")).resolves.toBeUndefined();
+  });
+
+  it("resolves media urls: root-relative against the base, absolute untouched", async () => {
+    const { mediaUrl } = await import("../src/lib/api.js");
+    expect(mediaUrl("https://cdn.example/x.png")).toBe("https://cdn.example/x.png");
+    // mock mode has an empty base, so a root-relative path is returned as-is
+    expect(mediaUrl("/media/a/b.png")).toBe("/media/a/b.png");
+  });
+
   it("appends uploaded media to a project (mock)", async () => {
     await api.signup("nova", "secret");
     const created = await api.createProject({ title: "Has Media" });

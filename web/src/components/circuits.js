@@ -118,7 +118,7 @@ export function initCircuits(canvas) {
     twangTimer -= dt;
     if (twangTimer <= 0) {
       twang(Math.floor(Math.random() * segments.length), 1);
-      twangTimer = 900 + Math.random() * 2100;
+      twangTimer = 350 + Math.random() * 1050;
     }
 
     // advance each oscillator and damp it

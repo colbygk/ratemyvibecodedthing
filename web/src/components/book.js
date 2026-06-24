@@ -1,25 +1,34 @@
 // The opened-book overlay: spine "opens" into two pages.
 // Left page = project info/links; right page = media + voting (+ notes when logged in).
-import { api } from "../lib/api.js";
+import { api, mediaUrl } from "../lib/api.js";
 import { toast } from "../lib/toast.js";
 
 let circuits = null;
 export function bindCircuits(c) { circuits = c; }
 
-export async function openBook(overlay, id, { session, onAuthNeeded, onEdit } = {}) {
+export async function openBook(overlay, id, { session, onAuthNeeded, onEdit, onVoted, onFollow } = {}) {
   const project = await api.getProject(id);
   if (!project) return;
 
   const score = (project.up || 0) - (project.down || 0);
   const loggedIn = !!session;
-  const isOwner = loggedIn && session.username?.toLowerCase() === project.author?.toLowerCase();
+  const author = project.author || "";
+  const isOwner = loggedIn && session.username?.toLowerCase() === author.toLowerCase();
+  const canFollow = loggedIn && !isOwner;
+  const follows = canFollow && (session.following || []).some((u) => u.toLowerCase() === author.toLowerCase());
 
   overlay.innerHTML = `
     <div class="book" role="document">
       <button class="book-close" aria-label="Close">✕</button>
 
       <section class="page page--left">
-        <p class="byline">vibe-coded by ${escape(project.author)}${isOwner ? ` · <button class="link-btn" data-edit>✎ edit</button>` : ""}</p>
+        <p class="byline">vibe-coded by ${escape(author)}${isOwner ? ` · <button class="link-btn" data-edit>✎ edit</button>` : ""}</p>
+        ${canFollow
+          ? `<div class="follow-row">
+               <button class="follow-btn${follows ? " is-active" : ""}" data-follow>${follows ? "Following" : "Follow"}</button>
+               <span class="follow-count" data-followers></span>
+             </div>`
+          : ""}
         <h2>${escape(project.title)}</h2>
         <p class="desc">${escape(project.description || "No description supplied.")}</p>
         ${renderLinks(project.links)}
@@ -66,6 +75,35 @@ export async function openBook(overlay, id, { session, onAuthNeeded, onEdit } = 
   overlay.querySelector("[data-auth]")?.addEventListener("click", (e) => { e.preventDefault(); close(); onAuthNeeded?.(); });
   overlay.querySelector("[data-edit]")?.addEventListener("click", () => { close(); onEdit?.(project); });
 
+  const followBtn = overlay.querySelector("[data-follow]");
+  if (followBtn) {
+    const followersEl = overlay.querySelector("[data-followers]");
+    let following = follows;
+    const showCount = (n) => { if (followersEl) followersEl.textContent = `${n} follower${n === 1 ? "" : "s"}`; };
+    api.graph(author).then((g) => showCount(g.followers)).catch(() => {});
+    followBtn.addEventListener("click", async () => {
+      followBtn.disabled = true;
+      try {
+        following ? await api.unfollow(author) : await api.follow(author);
+        following = !following;
+        followBtn.textContent = following ? "Following" : "Follow";
+        followBtn.classList.toggle("is-active", following);
+        // keep the session's following list in sync so counts/state persist
+        const list = session.following || (session.following = []);
+        const i = list.findIndex((u) => u.toLowerCase() === author.toLowerCase());
+        if (following && i < 0) list.push(author);
+        if (!following && i >= 0) list.splice(i, 1);
+        onFollow?.(session);
+        api.graph(author).then((g) => showCount(g.followers)).catch(() => {});
+        toast(following ? `Following @${author}` : `Unfollowed @${author}`);
+      } catch (err) {
+        toast(err.message);
+      } finally {
+        followBtn.disabled = false;
+      }
+    });
+  }
+
   const fileInput = overlay.querySelector("#media-file");
   fileInput?.addEventListener("change", async () => {
     const file = fileInput.files?.[0];
@@ -95,6 +133,7 @@ export async function openBook(overlay, id, { session, onAuthNeeded, onEdit } = 
           overlay.querySelector(".vote-tally").textContent = `${net >= 0 ? "+" : ""}${net}`;
           btn.classList.add("is-active");
           toast(note ? "Vote + note recorded" : "Vote recorded");
+          onVoted?.({ id, up: res.up, down: res.down });
         }
       } catch (err) {
         toast(err.message);
@@ -117,8 +156,8 @@ function renderMedia(media) {
   return `<div class="media-grid">${media
     .map((m) =>
       m.type === "video"
-        ? `<video src="${escape(m.url)}" controls preload="metadata"></video>`
-        : `<img src="${escape(m.url)}" alt="${escape(m.alt || "project screenshot")}" loading="lazy" />`
+        ? `<video src="${escape(mediaUrl(m.url))}" controls preload="metadata"></video>`
+        : `<img src="${escape(mediaUrl(m.url))}" alt="${escape(m.alt || "project screenshot")}" loading="lazy" />`
     )
     .join("")}</div>`;
 }
