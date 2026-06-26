@@ -6,3 +6,8 @@ dist/
 .wrangler/
 .DS_Store
 *.log
+
+# Production data snapshots from api/scripts/backup-redis.mjs — contain pwhashes.
+# NEVER commit. Keep them out of the repo.
+redis-backup*.json
+backups/
