@@ -1,5 +1,5 @@
 // Auth + submit modals, and the header session UI.
-import { api } from "../lib/api.js";
+import { api, MAX_MEDIA } from "../lib/api.js";
 import { toast } from "../lib/toast.js";
 
 export function renderHeader(nav, session, handlers) {
@@ -104,6 +104,10 @@ export function openProjectForm(overlay, { project = null, onSaved } = {}) {
           <label for="c">Spine color</label>
           <input id="c" name="coverColor" type="color" value="${attr(color)}" style="height:42px;padding:4px" />
         </div>
+        ${editing ? "" : `<div class="field">
+          <label for="m">Images / video <span class="hint">up to ${MAX_MEDIA}</span></label>
+          <input id="m" name="media" type="file" accept="image/*,video/*" multiple />
+        </div>`}
         <button class="btn btn--accent" type="submit">${editing ? "Save changes" : "Shelve it"}</button>
       </form>
       <button class="book-close" aria-label="Close" data-close>✕</button>
@@ -124,8 +128,18 @@ export function openProjectForm(overlay, { project = null, onSaved } = {}) {
       coverColor: fd.get("coverColor"),
       links: url ? [{ label: "live demo", url }] : [],
     };
+    const files = editing ? [] : [...(overlay.querySelector("#m")?.files || [])].slice(0, MAX_MEDIA);
     try {
       const saved = editing ? await api.updateProject(project.id, data) : await api.createProject(data);
+      // Attach media after creation (ADR-0002): reuse the per-file media endpoint,
+      // best-effort and sequential so one bad file doesn't block the rest.
+      if (files.length) {
+        toast(`Uploading ${files.length} file${files.length === 1 ? "" : "s"}…`);
+        for (const f of files) {
+          try { await api.uploadMedia(saved.id, f); }
+          catch (err) { toast(`“${f.name}”: ${err.message}`); }
+        }
+      }
       close();
       toast(editing ? `“${saved.title}” updated` : `“${saved.title}” is on the shelf`);
       onSaved?.(saved);

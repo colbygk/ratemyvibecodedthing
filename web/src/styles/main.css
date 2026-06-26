@@ -270,10 +270,22 @@ img, video { max-width: 100%; display: block; }
 }
 .book .links a:hover { border-color: var(--accent-dim); }
 
-.media-grid { display: grid; gap: 0.5rem; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); margin-bottom: 1.25rem; }
-.media-grid img, .media-grid video { border-radius: var(--radius-sm); aspect-ratio: 4/3; object-fit: cover; width: 100%; }
-.media-upload { margin: -0.5rem 0 1rem; }
+/* Larger, more legible media (ADR-0002): wide thumbnails up to ~3 across. */
+.media-grid { display: grid; gap: 0.6rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); margin-bottom: 1.25rem; }
+.media-grid img, .media-grid video { border-radius: var(--radius-sm); aspect-ratio: 16/10; object-fit: cover; width: 100%; max-height: 420px; }
+/* A lone item gets the full width of the page for a hero-sized preview. */
+.media-grid:has(> :only-child) { grid-template-columns: 1fr; }
+.media-grid:has(> :only-child) img, .media-grid:has(> :only-child) video { aspect-ratio: 16/9; max-height: 460px; }
+.media-upload { margin: -0.5rem 0 1rem; display: flex; align-items: baseline; gap: 0.6rem; }
 .media-upload .link-btn { font-family: var(--font-mono); font-size: 0.72rem; cursor: pointer; }
+.media-upload .media-count { font-family: var(--font-mono); font-size: 0.62rem; color: var(--paper-ink-soft); }
+
+/* Notes left with votes, surfaced read-only under the vote block (ADR-0003). */
+.notes { margin-top: 1.1rem; padding-top: 1rem; border-top: 1px solid var(--paper-shadow); }
+.notes-title { font-family: var(--font-mono); font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--paper-ink-soft); margin: 0 0 0.6rem; }
+.note-item { display: flex; gap: 0.55rem; padding: 0.3rem 0; font-size: 0.82rem; line-height: 1.4; }
+.note-who { font-family: var(--font-mono); font-size: 0.7rem; color: var(--accent-dim); flex: none; }
+.note-text { color: var(--paper-ink); overflow-wrap: anywhere; }
 
 /* follow control on the (paper) left page */
 .follow-row { display: flex; align-items: center; gap: 0.6rem; margin: 0.1rem 0 0.9rem; }

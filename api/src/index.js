@@ -6,7 +6,7 @@
  *   - Cloudflare R2 (binding: MEDIA) for user-uploaded images/video
  *
  * Redis key map:
- *   user:<username>           HASH  { pwhash, salt, created }
+ *   user:<username>           HASH  { pwhash, salt, created, username, trust }
  *   project:<id>              HASH  { title, author, description, links(JSON), media(JSON), up, down, created }
  *   projects:byScore          ZSET  member=<id> score=(up-down)   -> shelf ordering
  *   projects:byNew            ZSET  member=<id> score=created
@@ -20,7 +20,9 @@
 import { hashPassword, signJWT, verifyJWT, randomHex, timingSafeEqual } from "./lib/crypto.js";
 import { json, cors, httpError, clientIP, safeJSON, validateCreds, hashArrayToObject, allowedOrigin } from "./lib/util.js";
 import { consume, reserveStorage, usageToday } from "./lib/quota.js";
-import { sanitizeProjectEdits, editsToHSET } from "./lib/project.js";
+import { sanitizeProjectEdits, editsToHSET, MAX_MEDIA, assertMediaCapacity } from "./lib/project.js";
+import { newUserFields, publicUserShape } from "./lib/user.js";
+import { notesObjectToList } from "./lib/notes.js";
 
 export default {
   async fetch(request, env, ctx) {
@@ -63,6 +65,7 @@ async function route(request, env, ctx) {
   if (seg[0] === "projects" && seg[1] && !seg[2] && m === "GET") return getProject(seg[1], env);
   if (seg[0] === "projects" && seg[1] && !seg[2] && m === "PATCH") return editProject(seg[1], request, env);
   if (seg[0] === "projects" && seg[1] && seg[2] === "vote" && m === "POST") return vote(seg[1], request, env);
+  if (seg[0] === "projects" && seg[1] && seg[2] === "notes" && m === "GET") return listNotes(seg[1], env);
   if (seg[0] === "projects" && seg[1] && seg[2] === "media" && m === "POST") return uploadMedia(seg[1], request, env);
 
   // ---- media serving ----
@@ -89,9 +92,10 @@ async function signup(request, env) {
 
   const salt = randomHex(16);
   const pwhash = await hashPassword(password, salt);
-  await redis(env, ["HSET", key, "pwhash", pwhash, "salt", salt, "created", Date.now().toString(), "username", username]);
+  // Every account starts at trust = 1 (ADR-0004); field list lives in lib/user.js.
+  await redis(env, ["HSET", key, ...newUserFields({ username, pwhash, salt, now: Date.now() })]);
   const token = await signJWT({ sub: username }, env.JWT_SECRET);
-  return json({ token, user: { username, following: [], followers: [] } }, 201);
+  return json({ token, user: publicUserShape({ username }) }, 201);
 }
 
 async function login(request, env) {
@@ -112,11 +116,12 @@ async function me(request, env) {
 }
 
 async function publicUser(username, env) {
-  const [following, followers] = await Promise.all([
+  const [following, followers, trust] = await Promise.all([
     redis(env, ["SMEMBERS", `following:${username.toLowerCase()}`]),
     redis(env, ["SMEMBERS", `followers:${username.toLowerCase()}`]),
+    redis(env, ["HGET", `user:${username.toLowerCase()}`, "trust"]),
   ]);
-  return { username, following: following || [], followers: followers || [] };
+  return publicUserShape({ username, following, followers, trust });
 }
 
 /* ============================ Projects ============================ */
@@ -232,6 +237,15 @@ async function vote(id, request, env) {
   return json({ up: Number(up), down: Number(down), note: note || null });
 }
 
+// Public read of the notes left on a project (ADR-0003). Notes are written with
+// votes by logged-in users; this is the missing read path that surfaces them.
+async function listNotes(id, env) {
+  const exists = await redis(env, ["HEXISTS", `project:${id}`, "title"]);
+  if (!exists) throw httpError("Not found", 404);
+  const obj = await redisHGETALL(env, `notes:${id}`);
+  return json({ notes: notesObjectToList(obj) });
+}
+
 /* ============================ Follow graph ============================ */
 async function follow(target, request, env) {
   const me = await requireUser(request, env);
@@ -273,6 +287,11 @@ async function uploadMedia(id, request, env) {
   const type = request.headers.get("content-type") || "application/octet-stream";
   if (!/^image\/|^video\//.test(type)) throw httpError("Only image/video uploads allowed", 415);
 
+  // Up to MAX_MEDIA items per project (ADR-0002). Check BEFORE the R2 write so a
+  // rejected upload never orphans an object in the bucket.
+  const media = safeJSON(await redis(env, ["HGET", `project:${id}`, "media"]), []);
+  assertMediaCapacity(media.length);
+
   // Cost guard: enforce per-file + total storage caps and the daily upload-op
   // limit BEFORE writing to R2 (R2 has no provider-side auto-stop).
   const r1 = (cmd) => redis(env, cmd);
@@ -285,9 +304,8 @@ async function uploadMedia(id, request, env) {
   await env.MEDIA.put(objectKey, request.body, { httpMetadata: { contentType: type } });
 
   const kind = type.startsWith("video/") ? "video" : "image";
-  const media = safeJSON(await redis(env, ["HGET", `project:${id}`, "media"]), []);
   media.push({ type: kind, url: `/media/${objectKey}` });
-  await redis(env, ["HSET", `project:${id}`, "media", JSON.stringify(media.slice(0, 12))]);
+  await redis(env, ["HSET", `project:${id}`, "media", JSON.stringify(media.slice(0, MAX_MEDIA))]);
   return json({ media });
 }
 

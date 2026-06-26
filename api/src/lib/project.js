@@ -8,6 +8,18 @@ import { httpError } from "./util.js";
 
 const HEX = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
+// Max images/video per project (ADR-0002). Server-authoritative; the client also
+// stops the picker here. (ADR-0005, still Proposed, would make this trust-based.)
+export const MAX_MEDIA = 3;
+
+// Guard before accepting another upload. Throws httpError(409) when the project
+// already holds MAX_MEDIA (or more — legacy projects predate the lower cap).
+export function assertMediaCapacity(existingCount, max = MAX_MEDIA) {
+  if (existingCount >= max) {
+    throw httpError(`This project already has the maximum of ${max} media items`, 409);
+  }
+}
+
 export function sanitizeProjectEdits(patch = {}) {
   const out = {};
 

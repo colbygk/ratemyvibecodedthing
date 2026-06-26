@@ -1,5 +1,26 @@
 import { describe, it, expect } from "vitest";
-import { sanitizeProjectEdits, editsToHSET } from "../src/lib/project.js";
+import { sanitizeProjectEdits, editsToHSET, MAX_MEDIA, assertMediaCapacity } from "../src/lib/project.js";
+
+describe("media capacity", () => {
+  it("caps a project at 3 media", () => expect(MAX_MEDIA).toBe(3));
+
+  it("allows adding while under the cap", () => {
+    expect(() => assertMediaCapacity(0)).not.toThrow();
+    expect(() => assertMediaCapacity(2)).not.toThrow();
+  });
+
+  it("rejects (409) when already at the cap", () => {
+    let err;
+    try { assertMediaCapacity(3); } catch (e) { err = e; }
+    expect(err).toBeDefined();
+    expect(err.status).toBe(409);
+    expect(err.message).toMatch(/3/);
+  });
+
+  it("rejects when over the cap (legacy projects with >3)", () => {
+    expect(() => assertMediaCapacity(11)).toThrow();
+  });
+});
 
 describe("sanitizeProjectEdits", () => {
   it("returns only the provided fields (partial patch)", () => {

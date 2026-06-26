@@ -6,6 +6,9 @@ import { MOCK_PROJECTS } from "./mock.js";
 const BASE = import.meta.env.VITE_API_BASE || "";
 export const MOCK_MODE = !BASE;
 
+// Max images/video per project — mirrors the server cap (api project.js, ADR-0002).
+export const MAX_MEDIA = 3;
+
 // Media is served by the Worker and stored with a root-relative URL ("/media/..").
 // Resolve it against the API base so <img>/<video> hit the Worker, not the page
 // origin (GitHub Pages has no /media route → 404).
@@ -34,6 +37,7 @@ async function req(path, { method = "GET", body, auth = false } = {}) {
 const mockStore = structuredClone(MOCK_PROJECTS);
 let mockSession = null;
 const mockVoted = new Set();
+const mockNotes = {}; // id -> { username: note }
 
 export const api = {
   /* --- projects --- */
@@ -91,9 +95,19 @@ export const api = {
       if (mockVoted.has(id) && !mockSession) throw new Error("One vote per visitor — sign in for more.");
       mockVoted.add(id);
       if (dir === "up") p.up++; else p.down++;
+      if (note && mockSession) (mockNotes[id] ||= {})[mockSession.username] = note;
       return { up: p.up, down: p.down, note: note || null };
     }
     return req(`/projects/${id}/vote`, { method: "POST", body: { dir, note }, auth: true });
+  },
+
+  /* --- notes left on a project (public read; written with a vote) --- */
+  async notes(id) {
+    if (MOCK_MODE) {
+      const obj = mockNotes[id] || {};
+      return { notes: Object.entries(obj).map(([username, note]) => ({ username, note })) };
+    }
+    return req(`/projects/${id}/notes`);
   },
 
   /* --- auth --- */

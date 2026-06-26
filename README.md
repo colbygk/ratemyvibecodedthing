@@ -26,7 +26,16 @@ api/                 Cloudflare Worker API (Upstash Redis + R2)
   src/index.js
   wrangler.toml
 .github/workflows/   GitHub Pages deploy
+docs/adr/            Architecture Decision Records (see docs/adr/README.md)
 ```
+
+## Architecture decisions
+
+Significant design decisions are recorded as **ADRs** under
+[`docs/adr/`](docs/adr/README.md) (Proposed → Accepted → Deprecated). Current set
+covers media capture & presentation, surfacing project notes, the per-user trust
+score, and two proposals up for review: graduated upload limits by trust, and
+role-based access control carried in the JWT.
 
 ## Architecture
 
@@ -127,7 +136,8 @@ GET    /projects               top of shelf, by net score
 GET    /projects/:id
 POST   /projects               (Bearer) create
 POST   /projects/:id/vote      {dir:"up"|"down", note?}  (anon: 1/IP; user: +note)
-POST   /projects/:id/media     (Bearer, raw image/video body) → stored in R2
+GET    /projects/:id/notes     → {notes:[{username, note}]}  (public read)
+POST   /projects/:id/media     (Bearer, raw image/video body) → R2  (max 3/project)
 GET    /media/<key>            serve R2 object
 
 GET    /me/projects            (Bearer) your submissions

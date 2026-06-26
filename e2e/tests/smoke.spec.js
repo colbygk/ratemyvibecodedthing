@@ -64,3 +64,41 @@ test("owner can upload media and it serves back from R2", async ({ page }) => {
   // naturalWidth > 0 proves the <img> actually loaded from the Worker/R2 origin
   await expect.poll(() => img.evaluate((n) => n.complete && n.naturalWidth > 0)).toBe(true);
 });
+
+// ADR-0002: media can be attached during creation (not only after).
+test("media attached at creation appears in the book", async ({ page }) => {
+  await signup(page);
+  const title = `E2E Create Media ${uniq()}`;
+  await page.getByRole("button", { name: /\+ submit/i }).click();
+  await page.locator("#t").fill(title);
+  await page.locator("#m").setInputFiles({ name: "shot.png", mimeType: "image/png", buffer: PNG_1x1 });
+  await page.getByRole("button", { name: /shelve it/i }).click();
+
+  const spine = page.getByRole("button", { name: new RegExp(`Open .*${esc(title)}`) });
+  await expect(spine).toBeVisible();
+  await spine.click();
+  const img = page.locator("#book-overlay .media-grid img").first();
+  await expect(img).toBeVisible();
+  await expect.poll(() => img.evaluate((n) => n.complete && n.naturalWidth > 0)).toBe(true);
+});
+
+// ADR-0003: a note left with a vote is persisted AND rendered back in the book.
+test("a note left with a vote is surfaced in the book", async ({ page }) => {
+  const user = await signup(page);
+  const title = `E2E Note ${uniq()}`;
+  const spine = await createProject(page, title);
+  await spine.click();
+
+  const note = `vibes were immaculate ${uniq()}`;
+  await page.locator("#book-overlay #note").fill(note);
+  await page.locator('#book-overlay .vote-btn[data-dir="up"]').click();
+
+  const notes = page.locator("#book-overlay .notes");
+  await expect(notes).toContainText(note);
+  await expect(notes).toContainText(`@${user}`);
+
+  // and it survives a reload (persisted, not just optimistic UI)
+  await page.reload();
+  await spine.click();
+  await expect(page.locator("#book-overlay .notes")).toContainText(note);
+});

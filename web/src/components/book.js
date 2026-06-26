@@ -1,6 +1,6 @@
 // The opened-book overlay: spine "opens" into two pages.
 // Left page = project info/links; right page = media + voting (+ notes when logged in).
-import { api, mediaUrl } from "../lib/api.js";
+import { api, mediaUrl, MAX_MEDIA } from "../lib/api.js";
 import { toast } from "../lib/toast.js";
 
 let circuits = null;
@@ -37,8 +37,9 @@ export async function openBook(overlay, id, { session, onAuthNeeded, onEdit, onV
       <section class="page page--right">
         ${renderMedia(project.media)}
         ${isOwner
-          ? `<div class="media-upload">
+          ? `<div class="media-upload"${(project.media?.length || 0) >= MAX_MEDIA ? " hidden" : ""}>
                <label class="link-btn" for="media-file">＋ add image / video</label>
+               <span class="media-count">${project.media?.length || 0} / ${MAX_MEDIA}</span>
                <input id="media-file" type="file" accept="image/*,video/*" hidden />
              </div>`
           : ""}
@@ -55,6 +56,7 @@ export async function openBook(overlay, id, { session, onAuthNeeded, onEdit, onV
                </div>`
             : `<p class="note-locked">One vote per visitor. <a href="#" data-auth>Create an account</a> to vote more and leave notes.</p>`}
         </div>
+        <div class="notes" data-notes hidden></div>
       </section>
     </div>`;
 
@@ -104,6 +106,20 @@ export async function openBook(overlay, id, { session, onAuthNeeded, onEdit, onV
     });
   }
 
+  // Notes left on this project (public read path — ADR-0003). Render under votes.
+  const notesEl = overlay.querySelector("[data-notes]");
+  const renderNotes = (notes) => {
+    if (!notesEl) return;
+    if (!notes?.length) { notesEl.hidden = true; notesEl.innerHTML = ""; return; }
+    notesEl.hidden = false;
+    notesEl.innerHTML = `<h3 class="notes-title">Notes</h3>${notes
+      .map((n) => `<div class="note-item"><span class="note-who">@${escape(n.username)}</span><span class="note-text">${escape(n.note)}</span></div>`)
+      .join("")}`;
+  };
+  api.notes(id).then((r) => renderNotes(r.notes)).catch(() => {});
+
+  const mediaUpload = overlay.querySelector(".media-upload");
+  const mediaCountEl = overlay.querySelector(".media-count");
   const fileInput = overlay.querySelector("#media-file");
   fileInput?.addEventListener("change", async () => {
     const file = fileInput.files?.[0];
@@ -112,6 +128,8 @@ export async function openBook(overlay, id, { session, onAuthNeeded, onEdit, onV
     try {
       const res = await api.uploadMedia(id, file);
       overlay.querySelector(".media-grid").outerHTML = renderMedia(res.media);
+      if (mediaCountEl) mediaCountEl.textContent = `${res.media.length} / ${MAX_MEDIA}`;
+      if (res.media.length >= MAX_MEDIA && mediaUpload) mediaUpload.hidden = true;
       toast("Media added");
     } catch (err) {
       toast(err.message);
@@ -133,6 +151,7 @@ export async function openBook(overlay, id, { session, onAuthNeeded, onEdit, onV
           overlay.querySelector(".vote-tally").textContent = `${net >= 0 ? "+" : ""}${net}`;
           btn.classList.add("is-active");
           toast(note ? "Vote + note recorded" : "Vote recorded");
+          if (note) api.notes(id).then((r) => renderNotes(r.notes)).catch(() => {});
           onVoted?.({ id, up: res.up, down: res.down });
         }
       } catch (err) {

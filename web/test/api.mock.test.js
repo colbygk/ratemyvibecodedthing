@@ -76,4 +76,25 @@ describe("api (mock mode)", () => {
     const fetched = await api.getProject(created.id);
     expect(fetched.media).toHaveLength(1);
   });
+
+  it("exposes a shared media cap of 3", async () => {
+    const { MAX_MEDIA } = await import("../src/lib/api.js");
+    expect(MAX_MEDIA).toBe(3);
+  });
+
+  it("surfaces a note via the notes read path (ADR-0003 bug fix)", async () => {
+    await api.signup("nova", "secret");
+    const [target] = await api.listProjects();
+    expect((await api.notes(target.id)).notes).toEqual([]); // none yet
+    await api.vote(target.id, "up", "lovely vibes");
+    const { notes } = await api.notes(target.id);
+    expect(notes).toEqual([{ username: "nova", note: "lovely vibes" }]);
+  });
+
+  it("does not record a note for anonymous voters", async () => {
+    const list = await api.listProjects();
+    const target = list[2];
+    await api.vote(target.id, "up", "anon note");
+    expect((await api.notes(target.id)).notes).toEqual([]);
+  });
 });
