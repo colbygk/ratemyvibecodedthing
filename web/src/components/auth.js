@@ -88,7 +88,9 @@ export function openAuth(overlay, mode, onSession) {
 // Create (project=null) or edit (project provided) a project. Same form, both modes.
 export function openProjectForm(overlay, { project = null, session = null, onSaved } = {}) {
   const editing = !!project;
-  const link = editing ? (project.links?.[0]?.url || "") : "";
+  const findUrl = (label) => (project?.links || []).find((l) => (l.label || "").toLowerCase() === label)?.url || "";
+  const demo = editing ? (findUrl("live demo") || project.links?.[0]?.url || "") : "";
+  const repo = editing ? findUrl("repo") : "";
   const color = (editing && project.coverColor) || "#3a4a44";
   const maxMedia = maxMediaFor(session?.trust); // trust-graduated cap (ADR-0005)
   overlay.innerHTML = `
@@ -105,8 +107,12 @@ export function openProjectForm(overlay, { project = null, session = null, onSav
           <textarea id="d" name="description" rows="3" maxlength="600" placeholder="How did the vibes go?">${esc(editing ? project.description : "")}</textarea>
         </div>
         <div class="field">
-          <label for="l">Project link</label>
-          <input id="l" name="link" type="url" placeholder="https://…" value="${attr(link)}" />
+          <label for="l">Live demo</label>
+          <input id="l" name="link" type="url" placeholder="https://…" value="${attr(demo)}" />
+        </div>
+        <div class="field">
+          <label for="r">Repo <span class="hint">code / GitHub</span></label>
+          <input id="r" name="repo" type="url" placeholder="https://github.com/…" value="${attr(repo)}" />
         </div>
         <div class="field">
           <label for="c">Spine color</label>
@@ -129,12 +135,15 @@ export function openProjectForm(overlay, { project = null, session = null, onSav
   overlay.querySelector("#submit-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
-    const url = fd.get("link");
+    const demoUrl = fd.get("link"), repoUrl = fd.get("repo");
+    const links = [];
+    if (demoUrl) links.push({ label: "live demo", url: demoUrl });
+    if (repoUrl) links.push({ label: "repo", url: repoUrl });
     const data = {
       title: fd.get("title").trim(),
       description: fd.get("description").trim(),
       coverColor: fd.get("coverColor"),
-      links: url ? [{ label: "live demo", url }] : [],
+      links,
     };
     const files = editing ? [] : [...(overlay.querySelector("#m")?.files || [])].slice(0, maxMedia);
     try {

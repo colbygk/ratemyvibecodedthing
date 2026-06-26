@@ -25,7 +25,8 @@ export function newUserFields({ username, pwhash, salt, now, trust = DEFAULT_TRU
 // The shape returned to clients (/auth/me, login, signup). `trust` may arrive as
 // a Redis string or be absent on pre-trust accounts → coerce, default to 1.
 // `role` is the *effective* role (env allowlist already applied by the caller).
-export function publicUserShape({ username, following = [], followers = [], trust, role }) {
+// bio/github/links are the user-editable profile fields (default empty).
+export function publicUserShape({ username, following = [], followers = [], trust, role, bio = "", github = "", links = [] }) {
   const t = trust === undefined || trust === null || trust === "" ? DEFAULT_TRUST : Number(trust);
   return {
     username,
@@ -33,5 +34,8 @@ export function publicUserShape({ username, following = [], followers = [], trus
     followers: followers || [],
     trust: Number.isFinite(t) ? t : DEFAULT_TRUST,
     role: normalizeRole(role),
+    bio: bio || "",
+    github: github || "",
+    links: links || [],
   };
 }

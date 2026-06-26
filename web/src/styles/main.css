@@ -339,6 +339,19 @@ img, video { max-width: 100%; display: block; }
 /* User profile modal (identity + follow + counts; role/trust for moderators). */
 .profile-name { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
 .profile-stats { font-family: var(--font-mono); }
+.profile-bio { margin: 0.6rem 0 0.2rem; color: var(--text-soft); max-width: 42ch; }
+.profile-links { margin: 0.9rem 0 0.2rem; display: flex; flex-direction: column; gap: 0.4rem; }
+.profile-link { font-family: var(--font-mono); font-size: 0.78rem; color: var(--accent-dim); text-decoration: none; border-bottom: 1px solid transparent; width: fit-content; }
+.profile-link:hover { border-color: var(--accent-dim); color: var(--accent); }
+.profile-follow { margin-top: 1rem; }
+.profile-edit-btn { display: inline-block; margin-top: 1rem; font-family: var(--font-mono); font-size: 0.72rem; cursor: pointer; }
+.profile-cancel { display: inline-block; margin-left: 0.9rem; font-family: var(--font-mono); font-size: 0.72rem; cursor: pointer; }
+.profile-links-label { display: block; font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 0.5rem; }
+.link-row { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; }
+.link-row input { padding: 0.55rem 0.7rem; background: var(--ink-800); border: 1px solid var(--ink-600); border-radius: var(--radius-sm); color: var(--text); font-family: var(--font-ui); min-width: 0; }
+.link-row input:focus { outline: none; border-color: var(--accent-dim); box-shadow: var(--accent-glow); }
+.link-row input:first-child { flex: 0 0 38%; }
+.link-row input:last-child { flex: 1; }
 .profile-admin { margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--ink-600); }
 .profile-admin-title { font-family: var(--font-mono); font-size: 0.66rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 0.8rem; }
 

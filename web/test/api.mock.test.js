@@ -136,4 +136,14 @@ describe("api (mock mode)", () => {
     expect((await api.setTrust("nova", 7)).trust).toBe(7);
     expect(await api.userAdmin("nova")).toMatchObject({ role: "moderator", trust: 7 });
   });
+
+  it("updates your own profile (bio / github / links) and surfaces it via graph", async () => {
+    await api.signup("nova", "secret");
+    const updated = await api.updateMe({ bio: "I vibe", github: "novadev", links: [{ label: "site", url: "https://n.dev" }] });
+    expect(updated).toMatchObject({ bio: "I vibe", github: "novadev" });
+    expect(updated.links).toEqual([{ label: "site", url: "https://n.dev" }]);
+    // a public profile read sees it too
+    const g = await api.graph("nova");
+    expect(g).toMatchObject({ bio: "I vibe", github: "novadev" });
+  });
 });

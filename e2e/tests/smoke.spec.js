@@ -90,6 +90,37 @@ test("media attached at creation appears in the book", async ({ page }) => {
   await expect.poll(() => img.evaluate((n) => n.complete && n.naturalWidth > 0)).toBe(true);
 });
 
+// A project can carry both a live-demo and a repo link, shown in the book.
+test("a project can carry a repo link, shown in the book", async ({ page }) => {
+  await signup(page);
+  const title = `E2E Repo ${uniq()}`;
+  await page.getByRole("button", { name: /\+ submit/i }).click();
+  await page.locator("#t").fill(title);
+  await page.locator("#l").fill("https://demo.example");
+  await page.locator("#r").fill("https://github.com/octocat/hello");
+  await page.getByRole("button", { name: /shelve it/i }).click();
+
+  const spine = page.getByRole("button", { name: new RegExp(`Open .*${esc(title)}`) });
+  await expect(spine).toBeVisible();
+  await spine.click();
+  const links = page.locator("#book-overlay .links");
+  await expect(links).toContainText(/repo/i);
+  await expect(links.locator('a[href="https://github.com/octocat/hello"]')).toHaveCount(1);
+});
+
+// A user can edit their own profile (bio + GitHub), and it renders back.
+test("a user can edit their own profile", async ({ page }) => {
+  await signup(page);
+  await page.locator("#header-actions .header-me").click();
+  await expect(page.locator("#modal-overlay .profile")).toBeVisible();
+  await page.locator("#modal-overlay [data-edit-profile]").click();
+  await page.locator("#modal-overlay [data-bio]").fill("vibes only");
+  await page.locator("#modal-overlay [data-github]").fill("octocat");
+  await page.locator("#modal-overlay [data-save-profile]").click();
+  await expect(page.locator("#modal-overlay .profile-bio")).toContainText("vibes only");
+  await expect(page.locator('#modal-overlay .profile-links a[href="https://github.com/octocat"]')).toHaveCount(1);
+});
+
 // ADR-0006: a moderator (here a super_admin via the SUPERADMINS allowlist) can
 // hide a project off the shelf and remove a note. Username `e2eadmin` matches the
 // allowlist wired into the Docker API, so this is order-independent.

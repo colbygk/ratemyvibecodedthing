@@ -40,7 +40,9 @@ const mockVoted = new Set();
 const mockNotes = {}; // id -> { username: note }
 const mockRoles = {}; // username -> role
 const mockTrust = {}; // username -> trust
+const mockProfiles = {}; // username -> { bio, github, links }
 let mockUserCount = 0; // first signup becomes super_admin (mirrors the server)
+const mockProfile = (u) => mockProfiles[u] || { bio: "", github: "", links: [] };
 
 export const api = {
   /* --- projects --- */
@@ -140,7 +142,7 @@ export const api = {
     if (MOCK_MODE) {
       const role = ++mockUserCount === 1 ? "super_admin" : (mockRoles[username] || "user");
       mockRoles[username] = role;
-      mockSession = { username, following: [], followers: [], trust: mockTrust[username] || 1, role };
+      mockSession = { username, following: [], followers: [], trust: mockTrust[username] || 1, role, ...mockProfile(username) };
       return mockSession;
     }
     const s = await req("/auth/signup", { method: "POST", body: { username, password } });
@@ -149,7 +151,7 @@ export const api = {
   },
   async login(username, password) {
     if (MOCK_MODE) {
-      mockSession = { username, following: [], followers: [], trust: mockTrust[username] || 1, role: mockRoles[username] || "user" };
+      mockSession = { username, following: [], followers: [], trust: mockTrust[username] || 1, role: mockRoles[username] || "user", ...mockProfile(username) };
       return mockSession;
     }
     const s = await req("/auth/login", { method: "POST", body: { username, password } });
@@ -160,6 +162,17 @@ export const api = {
     if (MOCK_MODE) return mockSession;
     if (!getToken()) return null;
     return req("/auth/me", { auth: true }).catch(() => null);
+  },
+  // Update your own profile (bio / github / social links).
+  async updateMe(data) {
+    if (MOCK_MODE) {
+      if (!mockSession) throw new Error("Not logged in");
+      mockProfiles[mockSession.username] = { bio: data.bio || "", github: data.github || "", links: data.links || [] };
+      Object.assign(mockSession, mockProfiles[mockSession.username]);
+      return structuredClone(mockSession);
+    }
+    const u = await req("/auth/me", { method: "PATCH", body: data, auth: true });
+    return u;
   },
   logout() {
     if (MOCK_MODE) { mockSession = null; return; }
@@ -176,7 +189,7 @@ export const api = {
   async follow(username) { if (MOCK_MODE) return; return req(`/users/${username}/follow`, { method: "POST", auth: true }); },
   async unfollow(username) { if (MOCK_MODE) return; return req(`/users/${username}/follow`, { method: "DELETE", auth: true }); },
   async graph(username) {
-    if (MOCK_MODE) return { username, followers: 0, following: 0 };
+    if (MOCK_MODE) return { username, followers: 0, following: 0, ...mockProfile(username) };
     return req(`/users/${username}/graph`);
   },
 };

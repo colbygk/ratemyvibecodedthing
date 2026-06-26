@@ -41,14 +41,24 @@ describe("newUserFields", () => {
 });
 
 describe("publicUserShape", () => {
-  it("defaults following/followers to [], trust to 1, role to user", () => {
+  it("defaults following/followers to [], trust to 1, role to user, empty profile", () => {
     expect(publicUserShape({ username: "Nova" })).toEqual({
       username: "Nova",
       following: [],
       followers: [],
       trust: 1,
       role: "user",
+      bio: "",
+      github: "",
+      links: [],
     });
+  });
+
+  it("passes through profile fields", () => {
+    const out = publicUserShape({ username: "x", bio: "hi", github: "octocat", links: [{ label: "site", url: "u" }] });
+    expect(out.bio).toBe("hi");
+    expect(out.github).toBe("octocat");
+    expect(out.links).toEqual([{ label: "site", url: "u" }]);
   });
 
   it("passes through an effective role", () => {

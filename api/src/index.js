@@ -6,7 +6,7 @@
  *   - Cloudflare R2 (binding: MEDIA) for user-uploaded images/video
  *
  * Redis key map:
- *   user:<username>           HASH  { pwhash, salt, created, username, trust, role }
+ *   user:<username>           HASH  { pwhash, salt, created, username, trust, role, bio, github, links(JSON) }
  *   project:<id>              HASH  { title, author, description, links(JSON), media(JSON), up, down, created, hidden }
  *   projects:byScore          ZSET  member=<id> score=(up-down)   -> shelf ordering
  *   projects:byNew            ZSET  member=<id> score=created
@@ -22,6 +22,7 @@ import { json, cors, httpError, clientIP, safeJSON, validateCreds, hashArrayToOb
 import { consume, reserveStorage, usageToday } from "./lib/quota.js";
 import { sanitizeProjectEdits, editsToHSET, assertMediaCapacity } from "./lib/project.js";
 import { newUserFields, publicUserShape } from "./lib/user.js";
+import { sanitizeProfileEdits, profileToHSET } from "./lib/profile.js";
 import { notesObjectToList } from "./lib/notes.js";
 import { uploadLimitsFor } from "./lib/upload-limits.js";
 import { normalizeRole, can, effectiveRole, accountKeysOnly, firstUserRole } from "./lib/roles.js";
@@ -60,6 +61,7 @@ async function route(request, env, ctx) {
   if (path === "/auth/signup" && m === "POST") return signup(request, env);
   if (path === "/auth/login" && m === "POST") return login(request, env);
   if (path === "/auth/me" && m === "GET") return me(request, env);
+  if (path === "/auth/me" && m === "PATCH") return updateMe(request, env);
 
   // ---- projects ----
   if (path === "/projects" && m === "GET") return listProjects(env);
@@ -129,15 +131,28 @@ async function me(request, env) {
   return json(await publicUser(u, env));
 }
 
+// Update your own profile (bio / GitHub handle / social links). Self only.
+async function updateMe(request, env) {
+  const username = await requireUser(request, env);
+  const edits = sanitizeProfileEdits(await request.json());
+  const fields = profileToHSET(edits);
+  if (fields.length) await redis(env, ["HSET", `user:${username.toLowerCase()}`, ...fields]);
+  return json(await publicUser(username, env));
+}
+
 async function publicUser(username, env) {
-  const [following, followers, trust, storedRole] = await Promise.all([
+  const key = `user:${username.toLowerCase()}`;
+  const [following, followers, trust, storedRole, bio, github, links] = await Promise.all([
     redis(env, ["SMEMBERS", `following:${username.toLowerCase()}`]),
     redis(env, ["SMEMBERS", `followers:${username.toLowerCase()}`]),
-    redis(env, ["HGET", `user:${username.toLowerCase()}`, "trust"]),
-    redis(env, ["HGET", `user:${username.toLowerCase()}`, "role"]),
+    redis(env, ["HGET", key, "trust"]),
+    redis(env, ["HGET", key, "role"]),
+    redis(env, ["HGET", key, "bio"]),
+    redis(env, ["HGET", key, "github"]),
+    redis(env, ["HGET", key, "links"]),
   ]);
   const role = effectiveRole(storedRole, username, env.SUPERADMINS);
-  return publicUserShape({ username, following, followers, trust, role });
+  return publicUserShape({ username, following, followers, trust, role, bio, github, links: safeJSON(links, []) });
 }
 
 // Count real accounts (user:<name>) via SCAN — used once at signup to decide if
@@ -298,12 +313,24 @@ async function unfollow(target, request, env) {
   return json({ ok: true });
 }
 
+// Public view of a user: follow counts + their editable profile (bio/github/links).
 async function graph(username, env) {
-  const [followers, following] = await Promise.all([
+  const key = `user:${username.toLowerCase()}`;
+  const [followers, following, bio, github, links] = await Promise.all([
     redis(env, ["SCARD", `followers:${username.toLowerCase()}`]),
     redis(env, ["SCARD", `following:${username.toLowerCase()}`]),
+    redis(env, ["HGET", key, "bio"]),
+    redis(env, ["HGET", key, "github"]),
+    redis(env, ["HGET", key, "links"]),
   ]);
-  return json({ username, followers: Number(followers || 0), following: Number(following || 0) });
+  return json({
+    username,
+    followers: Number(followers || 0),
+    following: Number(following || 0),
+    bio: bio || "",
+    github: github || "",
+    links: safeJSON(links, []),
+  });
 }
 
 /* ============================ Moderation / admin (ADR-0006) ============================ */
