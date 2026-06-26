@@ -2,6 +2,7 @@
 // Left page = project info/links; right page = media + voting (+ notes when logged in).
 import { api, mediaUrl } from "../lib/api.js";
 import { maxMediaFor } from "../lib/limits.js";
+import { openLightbox } from "./lightbox.js";
 import { toast } from "../lib/toast.js";
 
 const ROLE_RANK = { user: 0, moderator: 1, super_admin: 2 };
@@ -85,6 +86,12 @@ export async function openBook(overlay, id, { session, onAuthNeeded, onEdit, onV
 
   overlay.querySelector(".book-close").addEventListener("click", close);
   overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+  // Click a thumbnail → view it full-size. Delegated so it survives the media
+  // grid being re-rendered after an upload.
+  overlay.addEventListener("click", (e) => {
+    const img = e.target.closest(".media-grid img");
+    if (img) openLightbox(img.src, { alt: img.alt });
+  });
   overlay.querySelector("[data-auth]")?.addEventListener("click", (e) => { e.preventDefault(); close(); onAuthNeeded?.(); });
   overlay.querySelector("[data-edit]")?.addEventListener("click", () => { close(); onEdit?.(project); });
 

@@ -63,6 +63,14 @@ test("owner can upload media and it serves back from R2", async ({ page }) => {
   await expect(img).toBeVisible();
   // naturalWidth > 0 proves the <img> actually loaded from the Worker/R2 origin
   await expect.poll(() => img.evaluate((n) => n.complete && n.naturalWidth > 0)).toBe(true);
+
+  // click-to-zoom: thumbnail opens a full-size lightbox; Escape closes it
+  await img.click();
+  await expect(page.locator(".lightbox .lightbox-img")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".lightbox")).toHaveCount(0);
+  // and the book overlay is still open underneath (Escape closed only the lightbox)
+  await expect(page.locator("#book-overlay .media-grid")).toBeVisible();
 });
 
 // ADR-0002: media can be attached during creation (not only after).
