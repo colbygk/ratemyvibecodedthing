@@ -178,7 +178,11 @@ export async function openBook(overlay, id, { session, onAuthNeeded, onEdit, onV
     const vs = vmeta.map((x) => x.v);
     const maxV = Math.max(...vs), minV = Math.min(...vs);
     nav.hidden = false;
-    overlay.querySelector("[data-vlabel]").textContent = `v${viewV} of ${maxV}${viewV === maxV ? "" : " · older"}`;
+    // Attach the status to the version being VIEWED (avoids "of 2 · older" being
+    // misread as "v2 is older"); name the latest explicitly when on an old one.
+    overlay.querySelector("[data-vlabel]").textContent =
+      viewV === maxV ? `v${viewV} · latest` : `v${viewV} · older (latest is v${maxV})`;
+    // ← steps to an older (lower) version, → to a newer (higher) one.
     overlay.querySelector("[data-vprev]").disabled = viewV <= minV;
     overlay.querySelector("[data-vnext]").disabled = viewV >= maxV;
   }

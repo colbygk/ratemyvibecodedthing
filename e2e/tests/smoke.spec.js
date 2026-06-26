@@ -152,14 +152,14 @@ test("owner publishes a new version and flips back in the book", async ({ page }
   await page.locator("#modal-overlay #cl").fill("reworked the writeup");
   await page.getByRole("button", { name: /publish version/i }).click();
 
-  // reopen → nav shows v2 current, then flip back to v1
+  // reopen → opens on the latest (v2); ← (older) steps down to v1
   await spine.click();
   await expect(page.locator("#book-overlay .version-nav")).toBeVisible();
-  await expect(page.locator("#book-overlay [data-vlabel]")).toContainText("v2 of 2");
+  await expect(page.locator("#book-overlay [data-vlabel]")).toHaveText("v2 · latest");
   await expect(page.locator("#book-overlay [data-desc]")).toContainText("second version text");
   await page.locator("#book-overlay [data-vprev]").click();
   await expect(page.locator("#book-overlay [data-desc]")).toContainText("first version text");
-  await expect(page.locator("#book-overlay [data-vlabel]")).toContainText("v1 of 2");
+  await expect(page.locator("#book-overlay [data-vlabel]")).toHaveText("v1 · older (latest is v2)");
 });
 
 // A project can carry both a live-demo and a repo link, shown in the book.
