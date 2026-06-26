@@ -137,6 +137,27 @@ describe("api (mock mode)", () => {
     expect(await api.userAdmin("nova")).toMatchObject({ role: "moderator", trust: 7 });
   });
 
+  it("publishes a new version, keeps history, and votes stay on the project (ADR-0007)", async () => {
+    await api.signup("nova", "secret");
+    const p = await api.createProject({ title: "Thing", description: "v1 desc" });
+    await api.vote(p.id, "up");
+    // single version → no history yet
+    expect((await api.listVersions(p.id)).versions).toHaveLength(1);
+
+    const v2 = await api.publishVersion(p.id, { title: "Thing", description: "v2 desc", changelog: "reworked" });
+    expect(v2.version).toBe(2);
+    expect(v2.description).toBe("v2 desc");
+
+    const list = await api.listVersions(p.id);
+    expect(list.versions.map((x) => x.v)).toEqual([2, 1]); // newest first
+    expect(list.versions.find((x) => x.current).v).toBe(2);
+
+    // older version preserves its docs
+    expect((await api.getVersion(p.id, 1)).description).toBe("v1 desc");
+    // the vote rode along on the project, regardless of version
+    expect((await api.getProject(p.id)).up).toBe(1);
+  });
+
   it("updates your own profile (bio / github / links) and surfaces it via graph", async () => {
     await api.signup("nova", "secret");
     const updated = await api.updateMe({ bio: "I vibe", github: "novadev", links: [{ label: "site", url: "https://n.dev" }] });

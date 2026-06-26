@@ -32,6 +32,7 @@ function paintShelves() {
       session: state.session,
       onAuthNeeded: () => openAuth(els.modal, "signup", setSession),
       onEdit: (project) => openProjectForm(els.modal, { project, session: state.session, onSaved: onUpdated }),
+      onPublish: (project) => openProjectForm(els.modal, { project, session: state.session, mode: "version", onSaved: onUpdated }),
       onVoted,
       onFollow: (session) => { state.session = session; paintHeader(); },
       onModerated: reloadProjects,

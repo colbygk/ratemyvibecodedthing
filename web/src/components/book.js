@@ -11,7 +11,7 @@ const atLeast = (role, min) => (ROLE_RANK[role] || 0) >= (ROLE_RANK[min] || 0);
 let circuits = null;
 export function bindCircuits(c) { circuits = c; }
 
-export async function openBook(overlay, id, { session, onAuthNeeded, onEdit, onVoted, onFollow, onModerated, onOpenProfile } = {}) {
+export async function openBook(overlay, id, { session, onAuthNeeded, onEdit, onVoted, onFollow, onModerated, onOpenProfile, onPublish } = {}) {
   const project = await api.getProject(id);
   if (!project) return;
 
@@ -32,7 +32,7 @@ export async function openBook(overlay, id, { session, onAuthNeeded, onEdit, onV
       <button class="book-close" aria-label="Close">✕</button>
 
       <section class="page page--left">
-        <p class="byline">vibe-coded by ${userLink(author)}${isOwner ? ` · <button class="link-btn" data-edit>✎ edit</button>` : ""}</p>
+        <p class="byline">vibe-coded by ${userLink(author)}${isOwner ? ` · <span data-owner-actions><button class="link-btn" data-edit>✎ edit</button> · <button class="link-btn" data-publish>＋ new version</button></span>` : ""}</p>
         ${canFollow
           ? `<div class="follow-row">
                <button class="follow-btn${follows ? " is-active" : ""}" data-follow>${follows ? "Following" : "Follow"}</button>
@@ -40,9 +40,15 @@ export async function openBook(overlay, id, { session, onAuthNeeded, onEdit, onV
              </div>`
           : ""}
         ${canModerate ? renderModBar(project) : ""}
-        <h2>${escape(project.title)}${project.hidden ? ` <span class="hidden-badge" data-hidden-badge>hidden</span>` : `<span class="hidden-badge" data-hidden-badge hidden>hidden</span>`}</h2>
-        <p class="desc">${escape(project.description || "No description supplied.")}</p>
-        ${renderLinks(project.links)}
+        <div class="version-nav" data-vnav hidden>
+          <button class="vnav-btn" data-vprev aria-label="Older version" title="Older version">←</button>
+          <span class="vnav-label" data-vlabel></span>
+          <button class="vnav-btn" data-vnext aria-label="Newer version" title="Newer version">→</button>
+        </div>
+        <h2><span class="book-title" data-title>${escape(project.title)}</span><span class="hidden-badge" data-hidden-badge${project.hidden ? "" : " hidden"}>hidden</span></h2>
+        <p class="version-changelog" data-vchangelog hidden></p>
+        <p class="desc" data-desc>${escape(project.description || "No description supplied.")}</p>
+        <div class="links" data-links>${renderLinksInner(project.links)}</div>
       </section>
 
       <section class="page page--right">
@@ -93,6 +99,7 @@ export async function openBook(overlay, id, { session, onAuthNeeded, onEdit, onV
   });
   overlay.querySelector("[data-auth]")?.addEventListener("click", (e) => { e.preventDefault(); close(); onAuthNeeded?.(); });
   overlay.querySelector("[data-edit]")?.addEventListener("click", () => { close(); onEdit?.(project); });
+  overlay.querySelector("[data-publish]")?.addEventListener("click", () => { close(); onPublish?.(project); });
   // Click a username (byline or a note author) → open that user's profile.
   overlay.addEventListener("click", (e) => {
     const u = e.target.closest(".user-link")?.dataset.user;
@@ -157,8 +164,56 @@ export async function openBook(overlay, id, { session, onAuthNeeded, onEdit, onV
 
   if (canModerate) wireModBar(overlay, id, project, onModerated);
 
+  // ---- documentation versions (ADR-0007): flip back through prior versions ----
+  let viewV = project.version || 1;
+  let vmeta = []; // [{ v, created, changelog, current }]
+  const ownerActions = overlay.querySelector("[data-owner-actions]");
   const mediaUpload = overlay.querySelector(".media-upload");
   const mediaCountEl = overlay.querySelector(".media-count");
+
+  function renderNav() {
+    const nav = overlay.querySelector("[data-vnav]");
+    if (!nav) return;
+    if (vmeta.length <= 1) { nav.hidden = true; return; }
+    const vs = vmeta.map((x) => x.v);
+    const maxV = Math.max(...vs), minV = Math.min(...vs);
+    nav.hidden = false;
+    overlay.querySelector("[data-vlabel]").textContent = `v${viewV} of ${maxV}${viewV === maxV ? "" : " · older"}`;
+    overlay.querySelector("[data-vprev]").disabled = viewV <= minV;
+    overlay.querySelector("[data-vnext]").disabled = viewV >= maxV;
+  }
+
+  async function showVersion(v) {
+    const isCur = v === (project.version || 1);
+    const doc = isCur
+      ? { title: project.title, description: project.description, links: project.links, media: project.media, changelog: project.changelog }
+      : await api.getVersion(id, v).catch(() => null);
+    if (!doc) return;
+    viewV = v;
+    overlay.querySelector("[data-title]").textContent = doc.title || "";
+    overlay.querySelector("[data-desc]").textContent = doc.description || "No description supplied.";
+    overlay.querySelector("[data-links]").innerHTML = renderLinksInner(doc.links);
+    overlay.querySelector(".media-grid").outerHTML = renderMedia(doc.media);
+    const cl = overlay.querySelector("[data-vchangelog]");
+    const text = vmeta.find((x) => x.v === v)?.changelog || doc.changelog || "";
+    cl.textContent = text ? `“${text}”` : "";
+    cl.hidden = !text;
+    // owner controls only act on the current version
+    if (ownerActions) ownerActions.hidden = !isCur;
+    if (mediaUpload) mediaUpload.hidden = !isCur || (doc.media?.length || 0) >= maxMedia;
+    renderNav();
+  }
+
+  overlay.querySelector("[data-vprev]")?.addEventListener("click", () => {
+    const older = Math.max(...vmeta.map((x) => x.v).filter((v) => v < viewV));
+    if (Number.isFinite(older)) showVersion(older);
+  });
+  overlay.querySelector("[data-vnext]")?.addEventListener("click", () => {
+    const newer = Math.min(...vmeta.map((x) => x.v).filter((v) => v > viewV));
+    if (Number.isFinite(newer)) showVersion(newer);
+  });
+  api.listVersions(id).then((r) => { vmeta = r.versions || []; renderNav(); }).catch(() => {});
+
   const fileInput = overlay.querySelector("#media-file");
   fileInput?.addEventListener("change", async () => {
     const file = fileInput.files?.[0];
@@ -166,6 +221,7 @@ export async function openBook(overlay, id, { session, onAuthNeeded, onEdit, onV
     toast("Uploading…");
     try {
       const res = await api.uploadMedia(id, file);
+      project.media = res.media; // keep current-version media in sync for flipping
       overlay.querySelector(".media-grid").outerHTML = renderMedia(res.media);
       if (mediaCountEl) mediaCountEl.textContent = `${res.media.length} / ${maxMedia}`;
       if (res.media.length >= maxMedia && mediaUpload) mediaUpload.hidden = true;
@@ -233,11 +289,11 @@ function userLink(name, extra = "") {
   return `<button class="${cls}" data-user="${escape(name)}">@${escape(name)}</button>`;
 }
 
-function renderLinks(links) {
-  if (!links?.length) return "";
-  return `<div class="links">${links
+// Inner <a> list for the links container (so a version flip can swap it in place).
+function renderLinksInner(links) {
+  return (links || [])
     .map((l) => `<a href="${escape(l.url)}" target="_blank" rel="noopener noreferrer">↗ ${escape(l.label || l.url)}</a>`)
-    .join("")}</div>`;
+    .join("");
 }
 
 function renderMedia(media) {

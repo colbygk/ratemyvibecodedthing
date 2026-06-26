@@ -41,6 +41,7 @@ const mockNotes = {}; // id -> { username: note }
 const mockRoles = {}; // username -> role
 const mockTrust = {}; // username -> trust
 const mockProfiles = {}; // username -> { bio, github, links }
+const mockVersions = {}; // project id -> [ superseded version snapshots ]
 let mockUserCount = 0; // first signup becomes super_admin (mirrors the server)
 const mockProfile = (u) => mockProfiles[u] || { bio: "", github: "", links: [] };
 
@@ -70,6 +71,40 @@ export const api = {
       return structuredClone(p);
     }
     return req(`/projects/${id}`, { method: "PATCH", body: data, auth: true });
+  },
+
+  /* --- documentation versions (ADR-0007): votes/notes stay on the project --- */
+  async publishVersion(id, data) {
+    if (MOCK_MODE) {
+      const p = mockStore.find((x) => x.id === id);
+      if (!p) throw new Error("Not found");
+      const curV = p.version || 1;
+      (mockVersions[id] ||= []).push({ v: curV, title: p.title, description: p.description || "", links: p.links || [], media: p.media || [], created: p.versionAt || 0, changelog: p.changelog || "" });
+      Object.assign(p, { title: data.title ?? p.title, description: data.description || "", links: data.links || [], media: [], version: curV + 1, versionAt: Date.now(), changelog: data.changelog || "" });
+      return structuredClone(p);
+    }
+    return req(`/projects/${id}/versions`, { method: "POST", body: data, auth: true });
+  },
+  async listVersions(id) {
+    if (MOCK_MODE) {
+      const p = mockStore.find((x) => x.id === id);
+      if (!p) return { versions: [] };
+      const versions = (mockVersions[id] || []).map((s) => ({ v: s.v, created: s.created || 0, changelog: s.changelog || "", current: false }));
+      versions.push({ v: p.version || 1, created: p.versionAt || 0, changelog: p.changelog || "", current: true });
+      versions.sort((a, b) => b.v - a.v);
+      return { versions };
+    }
+    return req(`/projects/${id}/versions`);
+  },
+  async getVersion(id, v) {
+    if (MOCK_MODE) {
+      const p = mockStore.find((x) => x.id === id);
+      if (!p) return null;
+      if (Number(v) === (p.version || 1)) return { title: p.title, description: p.description, links: p.links || [], media: p.media || [], v: p.version || 1, changelog: p.changelog || "", isCurrent: true };
+      const s = (mockVersions[id] || []).find((x) => Number(x.v) === Number(v));
+      return s ? { ...s, isCurrent: false } : null;
+    }
+    return req(`/projects/${id}/versions/${v}`);
   },
 
   /* --- media (R2): POST the raw file as the body; type drives image vs video --- */

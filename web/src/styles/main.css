@@ -290,6 +290,14 @@ img, video { max-width: 100%; display: block; }
 }
 .book .links a:hover { border-color: var(--accent-dim); }
 
+/* Version navigator on the (paper) left page (ADR-0007). */
+.version-nav { display: inline-flex; align-items: center; gap: 0.5rem; margin: 0.1rem 0 0.7rem; }
+.vnav-btn { font-family: var(--font-mono); font-size: 0.8rem; line-height: 1; padding: 0.15rem 0.5rem; border: 1px solid var(--paper-shadow); border-radius: var(--radius-sm); background: transparent; color: var(--paper-ink-soft); cursor: pointer; transition: border-color 0.18s, color 0.18s; }
+.vnav-btn:hover:not(:disabled) { border-color: var(--accent-dim); color: var(--accent-dim); }
+.vnav-btn:disabled { opacity: 0.3; cursor: default; }
+.vnav-label { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.03em; color: var(--paper-ink-soft); }
+.version-changelog { font-family: var(--font-mono); font-size: 0.74rem; font-style: italic; color: var(--paper-ink-soft); margin: -0.4rem 0 0.7rem; max-width: 42ch; }
+
 /* Larger, more legible media (ADR-0002): wide thumbnails up to ~3 across. */
 .media-grid { display: grid; gap: 0.6rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); margin-bottom: 1.25rem; }
 .media-grid img, .media-grid video { border-radius: var(--radius-sm); aspect-ratio: 16/10; object-fit: cover; width: 100%; max-height: 420px; }

@@ -85,27 +85,36 @@ export function openAuth(overlay, mode, onSession) {
   });
 }
 
-// Create (project=null) or edit (project provided) a project. Same form, both modes.
-export function openProjectForm(overlay, { project = null, session = null, onSaved } = {}) {
-  const editing = !!project;
+// Create (no project), edit-in-place (project), or publish a new version
+// (project + mode:"version") of a project. One form, three modes.
+export function openProjectForm(overlay, { project = null, session = null, mode = null, onSaved } = {}) {
+  const versioning = mode === "version";       // publish a new doc version (ADR-0007)
+  const editing = !!project && !versioning;    // edit the current version in place
+  const fromProject = !!project;               // prefill from the existing project
   const findUrl = (label) => (project?.links || []).find((l) => (l.label || "").toLowerCase() === label)?.url || "";
-  const demo = editing ? (findUrl("live demo") || project.links?.[0]?.url || "") : "";
-  const repo = editing ? findUrl("repo") : "";
-  const color = (editing && project.coverColor) || "#3a4a44";
+  const demo = fromProject ? (findUrl("live demo") || project.links?.[0]?.url || "") : "";
+  const repo = fromProject ? findUrl("repo") : "";
+  const color = (fromProject && project.coverColor) || "#3a4a44";
   const maxMedia = maxMediaFor(session?.trust); // trust-graduated cap (ADR-0005)
   overlay.innerHTML = `
     <div class="modal" role="document">
-      <h2>${editing ? "Edit your thing" : "Shelve a new thing"}</h2>
-      <p class="hint">Tell us about the thing you vibe-coded. The project link becomes the spine's cover snapshot.</p>
+      <h2>${versioning ? "Publish a new version" : editing ? "Edit your thing" : "Shelve a new thing"}</h2>
+      <p class="hint">${versioning
+        ? "A new version of the docs. Votes and notes carry over; the previous version is kept and browsable. New media starts fresh."
+        : "Tell us about the thing you vibe-coded. The live demo becomes the spine's cover snapshot."}</p>
       <form id="submit-form">
         <div class="field">
           <label for="t">Title</label>
-          <input id="t" name="title" required maxlength="60" placeholder="What's it called?" value="${attr(editing ? project.title : "")}" />
+          <input id="t" name="title" required maxlength="60" placeholder="What's it called?" value="${attr(fromProject ? project.title : "")}" />
         </div>
         <div class="field">
           <label for="d">Description</label>
-          <textarea id="d" name="description" rows="3" maxlength="600" placeholder="How did the vibes go?">${esc(editing ? project.description : "")}</textarea>
+          <textarea id="d" name="description" rows="3" maxlength="600" placeholder="How did the vibes go?">${esc(fromProject ? project.description : "")}</textarea>
         </div>
+        ${versioning ? `<div class="field">
+          <label for="cl">What changed? <span class="hint">optional changelog</span></label>
+          <input id="cl" name="changelog" maxlength="200" placeholder="e.g. reworked the writeup, new screenshots" />
+        </div>` : ""}
         <div class="field">
           <label for="l">Live demo</label>
           <input id="l" name="link" type="url" placeholder="https://…" value="${attr(demo)}" />
@@ -122,7 +131,7 @@ export function openProjectForm(overlay, { project = null, session = null, onSav
           <label for="m">Images / video <span class="hint">up to ${maxMedia}</span></label>
           <input id="m" name="media" type="file" accept="image/*,video/*" multiple />
         </div>`}
-        <button class="btn btn--accent" type="submit">${editing ? "Save changes" : "Shelve it"}</button>
+        <button class="btn btn--accent" type="submit">${versioning ? "Publish version" : editing ? "Save changes" : "Shelve it"}</button>
       </form>
       <button class="book-close" aria-label="Close" data-close>✕</button>
     </div>`;
@@ -145,11 +154,14 @@ export function openProjectForm(overlay, { project = null, session = null, onSav
       coverColor: fd.get("coverColor"),
       links,
     };
+    if (versioning) data.changelog = fd.get("changelog")?.trim() || "";
     const files = editing ? [] : [...(overlay.querySelector("#m")?.files || [])].slice(0, maxMedia);
     try {
-      const saved = editing ? await api.updateProject(project.id, data) : await api.createProject(data);
-      // Attach media after creation (ADR-0002): reuse the per-file media endpoint,
-      // best-effort and sequential so one bad file doesn't block the rest.
+      const saved = versioning
+        ? await api.publishVersion(project.id, data)
+        : editing ? await api.updateProject(project.id, data) : await api.createProject(data);
+      // Attach media (ADR-0002): reuse the per-file media endpoint, best-effort and
+      // sequential so one bad file doesn't block the rest. (create + new version)
       if (files.length) {
         toast(`Uploading ${files.length} file${files.length === 1 ? "" : "s"}…`);
         for (const f of files) {
@@ -158,7 +170,7 @@ export function openProjectForm(overlay, { project = null, session = null, onSav
         }
       }
       close();
-      toast(editing ? `“${saved.title}” updated` : `“${saved.title}” is on the shelf`);
+      toast(versioning ? `“${saved.title}” — v${saved.version} published` : editing ? `“${saved.title}” updated` : `“${saved.title}” is on the shelf`);
       onSaved?.(saved);
     } catch (err) {
       toast(err.message);

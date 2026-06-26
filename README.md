@@ -132,12 +132,16 @@ registrar/DNS.
 POST   /auth/signup            {username, password} → {token, user}
 POST   /auth/login             {username, password} → {token, user}
 GET    /auth/me                (Bearer) → user
+PATCH  /auth/me                (Bearer) update own profile {bio?, github?, links?}
 
 GET    /projects               top of shelf, by net score
 GET    /projects/:id
 POST   /projects               (Bearer) create
 POST   /projects/:id/vote      {dir:"up"|"down", note?}  (anon: 1/IP; user: +note)
 GET    /projects/:id/notes     → {notes:[{username, note}]}  (public read)
+POST   /projects/:id/versions  (Bearer, owner) publish a new doc version (ADR-0007)
+GET    /projects/:id/versions  → {versions:[{v, created, changelog, current}]}
+GET    /projects/:id/versions/:v → that version's preserved docs
 POST   /projects/:id/media     (Bearer, raw image/video body) → R2  (max 3/project)
 GET    /media/<key>            serve R2 object
 

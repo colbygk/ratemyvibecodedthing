@@ -132,6 +132,36 @@ test("project documentation versions (API)", async ({ request }) => {
   expect(forbidden.status()).toBe(403);
 });
 
+// ADR-0007 (UX): owner publishes a new version from the book, then flips back.
+test("owner publishes a new version and flips back in the book", async ({ page }) => {
+  await signup(page);
+  const title = `E2E VerUX ${uniq()}`;
+  await page.getByRole("button", { name: /\+ submit/i }).click();
+  await page.locator("#t").fill(title);
+  await page.locator("#d").fill("first version text");
+  await page.getByRole("button", { name: /shelve it/i }).click();
+
+  const spine = page.getByRole("button", { name: new RegExp(`Open .*${esc(title)}`) });
+  await expect(spine).toBeVisible();
+  await spine.click();
+
+  // publish v2
+  await page.locator("#book-overlay [data-publish]").click();
+  await expect(page.locator("#modal-overlay")).toContainText(/Publish a new version/i);
+  await page.locator("#modal-overlay #d").fill("second version text");
+  await page.locator("#modal-overlay #cl").fill("reworked the writeup");
+  await page.getByRole("button", { name: /publish version/i }).click();
+
+  // reopen → nav shows v2 current, then flip back to v1
+  await spine.click();
+  await expect(page.locator("#book-overlay .version-nav")).toBeVisible();
+  await expect(page.locator("#book-overlay [data-vlabel]")).toContainText("v2 of 2");
+  await expect(page.locator("#book-overlay [data-desc]")).toContainText("second version text");
+  await page.locator("#book-overlay [data-vprev]").click();
+  await expect(page.locator("#book-overlay [data-desc]")).toContainText("first version text");
+  await expect(page.locator("#book-overlay [data-vlabel]")).toContainText("v1 of 2");
+});
+
 // A project can carry both a live-demo and a repo link, shown in the book.
 test("a project can carry a repo link, shown in the book", async ({ page }) => {
   await signup(page);
