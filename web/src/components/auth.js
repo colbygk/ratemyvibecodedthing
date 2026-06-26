@@ -8,9 +8,12 @@ const ROLE_LABEL = { moderator: "moderator", super_admin: "super admin" };
 export function renderHeader(nav, session, handlers) {
   nav.innerHTML = "";
   if (session) {
-    const hi = document.createElement("span");
-    hi.className = "btn";
+    const hi = document.createElement("button");
+    hi.type = "button";
+    hi.className = "btn header-me";
     hi.style.borderColor = "transparent";
+    hi.title = "Your profile";
+    hi.addEventListener("click", () => handlers.onOpenProfile?.(session.username));
     const fg = (session.following || []).length;
     const fr = (session.followers || []).length;
     const roleBadge = ROLE_LABEL[session.role] ? ` <span class="role-badge">${ROLE_LABEL[session.role]}</span>` : "";

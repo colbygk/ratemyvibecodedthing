@@ -11,7 +11,7 @@ const atLeast = (role, min) => (ROLE_RANK[role] || 0) >= (ROLE_RANK[min] || 0);
 let circuits = null;
 export function bindCircuits(c) { circuits = c; }
 
-export async function openBook(overlay, id, { session, onAuthNeeded, onEdit, onVoted, onFollow, onModerated } = {}) {
+export async function openBook(overlay, id, { session, onAuthNeeded, onEdit, onVoted, onFollow, onModerated, onOpenProfile } = {}) {
   const project = await api.getProject(id);
   if (!project) return;
 
@@ -21,10 +21,9 @@ export async function openBook(overlay, id, { session, onAuthNeeded, onEdit, onV
   const isOwner = loggedIn && session.username?.toLowerCase() === author.toLowerCase();
   const canFollow = loggedIn && !isOwner;
   const follows = canFollow && (session.following || []).some((u) => u.toLowerCase() === author.toLowerCase());
-  // RBAC (ADR-0006): moderators can hide/unhide and remove notes; super_admins
-  // can additionally set the author's role/trust.
+  // RBAC (ADR-0006): moderators can hide/unhide projects and remove notes. Role
+  // and trust are managed on the user's profile, not here.
   const canModerate = loggedIn && atLeast(session.role, "moderator");
-  const isSuperAdmin = loggedIn && atLeast(session.role, "super_admin");
   const maxMedia = maxMediaFor(session?.trust); // trust-graduated cap (ADR-0005)
   const mediaCount = project.media?.length || 0;
 
@@ -33,14 +32,14 @@ export async function openBook(overlay, id, { session, onAuthNeeded, onEdit, onV
       <button class="book-close" aria-label="Close">✕</button>
 
       <section class="page page--left">
-        <p class="byline">vibe-coded by ${escape(author)}${isOwner ? ` · <button class="link-btn" data-edit>✎ edit</button>` : ""}</p>
+        <p class="byline">vibe-coded by ${userLink(author)}${isOwner ? ` · <button class="link-btn" data-edit>✎ edit</button>` : ""}</p>
         ${canFollow
           ? `<div class="follow-row">
                <button class="follow-btn${follows ? " is-active" : ""}" data-follow>${follows ? "Following" : "Follow"}</button>
                <span class="follow-count" data-followers></span>
              </div>`
           : ""}
-        ${canModerate ? renderModBar(project, isSuperAdmin, author) : ""}
+        ${canModerate ? renderModBar(project) : ""}
         <h2>${escape(project.title)}${project.hidden ? ` <span class="hidden-badge" data-hidden-badge>hidden</span>` : `<span class="hidden-badge" data-hidden-badge hidden>hidden</span>`}</h2>
         <p class="desc">${escape(project.description || "No description supplied.")}</p>
         ${renderLinks(project.links)}
@@ -94,6 +93,11 @@ export async function openBook(overlay, id, { session, onAuthNeeded, onEdit, onV
   });
   overlay.querySelector("[data-auth]")?.addEventListener("click", (e) => { e.preventDefault(); close(); onAuthNeeded?.(); });
   overlay.querySelector("[data-edit]")?.addEventListener("click", () => { close(); onEdit?.(project); });
+  // Click a username (byline or a note author) → open that user's profile.
+  overlay.addEventListener("click", (e) => {
+    const u = e.target.closest(".user-link")?.dataset.user;
+    if (u) { close(); onOpenProfile?.(u); }
+  });
 
   const followBtn = overlay.querySelector("[data-follow]");
   if (followBtn) {
@@ -133,7 +137,7 @@ export async function openBook(overlay, id, { session, onAuthNeeded, onEdit, onV
     notesEl.hidden = false;
     notesEl.innerHTML = `<h3 class="notes-title">Notes</h3>${notes
       .map((n) => `<div class="note-item">
-          <span class="note-who">@${escape(n.username)}</span>
+          ${userLink(n.username, "note-who")}
           <span class="note-text">${escape(n.note)}</span>
           ${canModerate ? `<button class="note-remove" title="Remove note" data-remove-note="${escape(n.username)}">✕</button>` : ""}
         </div>`)
@@ -151,7 +155,7 @@ export async function openBook(overlay, id, { session, onAuthNeeded, onEdit, onV
     } catch (err) { toast(err.message); }
   });
 
-  if (canModerate) wireModBar(overlay, id, project, isSuperAdmin, author, onModerated);
+  if (canModerate) wireModBar(overlay, id, project, onModerated);
 
   const mediaUpload = overlay.querySelector(".media-upload");
   const mediaCountEl = overlay.querySelector(".media-count");
@@ -196,28 +200,16 @@ export async function openBook(overlay, id, { session, onAuthNeeded, onEdit, onV
   );
 }
 
-// Moderator toolbar (ADR-0006): hide/unhide this project, and — for super_admins —
-// adjust the author's role and trust (the latter unlocks higher upload tiers).
-function renderModBar(project, isSuperAdmin, author) {
+// Moderator toolbar (ADR-0006): hide/unhide this project. Role/trust are managed
+// on the user's profile (openProfile), not per project.
+function renderModBar(project) {
   return `<div class="mod-bar" data-mod-bar>
     <span class="mod-tag">mod</span>
     <button class="link-btn" data-hide-toggle>${project.hidden ? "unhide" : "hide"} project</button>
-    ${isSuperAdmin
-      ? `<span class="mod-admin" data-mod-admin hidden>
-           <label>role
-             <select data-role>
-               <option value="user">user</option>
-               <option value="moderator">moderator</option>
-               <option value="super_admin">super_admin</option>
-             </select>
-           </label>
-           <label>trust <input type="number" min="0" max="100" step="1" data-trust style="width:3.5rem" /></label>
-         </span>`
-      : ""}
   </div>`;
 }
 
-function wireModBar(overlay, id, project, isSuperAdmin, author, onModerated) {
+function wireModBar(overlay, id, project, onModerated) {
   let hidden = !!project.hidden;
   const badge = overlay.querySelector("[data-hidden-badge]");
   const hideBtn = overlay.querySelector("[data-hide-toggle]");
@@ -233,25 +225,12 @@ function wireModBar(overlay, id, project, isSuperAdmin, author, onModerated) {
     } catch (err) { toast(err.message); }
     finally { hideBtn.disabled = false; }
   });
+}
 
-  if (!isSuperAdmin) return;
-  const adminEl = overlay.querySelector("[data-mod-admin]");
-  const roleSel = overlay.querySelector("[data-role]");
-  const trustInp = overlay.querySelector("[data-trust]");
-  // Load the author's current role/trust, then reveal the controls.
-  api.userAdmin(author).then((a) => {
-    if (roleSel) roleSel.value = a.role;
-    if (trustInp) trustInp.value = a.trust;
-    if (adminEl) adminEl.hidden = false;
-  }).catch(() => {});
-  roleSel?.addEventListener("change", async () => {
-    try { const r = await api.setRole(author, roleSel.value); toast(`@${author} is now ${r.role}`); }
-    catch (err) { toast(err.message); }
-  });
-  trustInp?.addEventListener("change", async () => {
-    try { const r = await api.setTrust(author, Number(trustInp.value)); toast(`@${author} trust set to ${r.trust}`); }
-    catch (err) { toast(err.message); }
-  });
+// A clickable username that opens the user's profile (handler is delegated).
+function userLink(name, extra = "") {
+  const cls = `user-link${extra ? " " + extra : ""}`;
+  return `<button class="${cls}" data-user="${escape(name)}">@${escape(name)}</button>`;
 }
 
 function renderLinks(links) {

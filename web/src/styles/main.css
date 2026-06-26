@@ -283,8 +283,15 @@ img, video { max-width: 100%; display: block; }
 /* A lone item gets the full width of the page for a hero-sized preview. */
 .media-grid:has(> :only-child) { grid-template-columns: 1fr; }
 .media-grid:has(> :only-child) img, .media-grid:has(> :only-child) video { aspect-ratio: 16/9; max-height: 460px; }
-.media-upload { margin: -0.5rem 0 1rem; display: flex; align-items: baseline; gap: 0.6rem; }
-.media-upload .link-btn { font-family: var(--font-mono); font-size: 0.72rem; cursor: pointer; }
+.media-upload { margin: -0.25rem 0 1rem; display: flex; align-items: center; gap: 0.7rem; }
+/* Styled like the site's accent buttons (e.g. "Shelve it"), not a plain link. */
+.media-upload .link-btn {
+  font-family: var(--font-mono); font-size: 0.74rem; letter-spacing: 0.04em;
+  padding: 0.5rem 1rem; border: 1px solid var(--accent-dim); border-radius: var(--radius-sm);
+  color: var(--accent-dim); background: transparent; cursor: pointer; border-bottom-width: 1px;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+.media-upload .link-btn:hover { background: var(--accent-dim); color: var(--paper); border-color: var(--accent-dim); }
 .media-upload .media-count { font-family: var(--font-mono); font-size: 0.62rem; color: var(--paper-ink-soft); }
 
 /* Notes left with votes, surfaced read-only under the vote block (ADR-0003). */
@@ -300,11 +307,20 @@ img, video { max-width: 100%; display: block; }
 .mod-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin: 0.1rem 0 0.9rem; padding: 0.45rem 0.6rem; border: 1px dashed var(--paper-shadow); border-radius: var(--radius-sm); }
 .mod-tag { font-family: var(--font-mono); font-size: 0.56rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--paper); background: var(--accent-dim); padding: 0.1rem 0.4rem; border-radius: 999px; }
 .mod-bar .link-btn { font-family: var(--font-mono); font-size: 0.72rem; cursor: pointer; }
-.mod-admin { display: inline-flex; align-items: center; gap: 0.7rem; font-family: var(--font-mono); font-size: 0.66rem; color: var(--paper-ink-soft); }
-.mod-admin label { display: inline-flex; align-items: center; gap: 0.3rem; }
-.mod-admin select, .mod-admin input { font-family: var(--font-mono); font-size: 0.7rem; }
 .role-badge { font-family: var(--font-mono); font-size: 0.54rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); border: 1px solid var(--accent-dim); border-radius: 999px; padding: 0.05rem 0.4rem; vertical-align: middle; }
 .hidden-badge { font-family: var(--font-mono); font-size: 0.55rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--paper); background: #c0533b; border-radius: 999px; padding: 0.1rem 0.45rem; vertical-align: middle; }
+
+/* Clickable usernames → open the user's profile. */
+.user-link { background: none; border: 0; padding: 0; margin: 0; font: inherit; color: var(--accent-dim); cursor: pointer; border-bottom: 1px solid transparent; }
+.user-link:hover { color: var(--accent); border-bottom-color: currentColor; }
+.user-link.note-who { font-family: var(--font-mono); font-size: 0.7rem; flex: none; }
+.header-me { cursor: pointer; }
+
+/* User profile modal (identity + follow + counts; role/trust for moderators). */
+.profile-name { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.profile-stats { font-family: var(--font-mono); }
+.profile-admin { margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--ink-600); }
+.profile-admin-title { font-family: var(--font-mono); font-size: 0.66rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 0.8rem; }
 
 /* follow control on the (paper) left page */
 .follow-row { display: flex; align-items: center; gap: 0.6rem; margin: 0.1rem 0 0.9rem; }
@@ -375,12 +391,23 @@ img, video { max-width: 100%; display: block; }
 .modal .hint { color: var(--text-soft); font-size: 0.85rem; margin-bottom: 1.25rem; }
 .field { margin-bottom: 1rem; }
 .field label { display: block; font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 0.35rem; }
-.field input, .field textarea {
+.field input, .field textarea, .field select {
   width: 100%; padding: 0.7rem 0.85rem;
   background: var(--ink-800); border: 1px solid var(--ink-600);
   border-radius: var(--radius-sm); color: var(--text); font-family: var(--font-ui);
 }
-.field input:focus, .field textarea:focus { outline: none; border-color: var(--accent-dim); box-shadow: var(--accent-glow); }
+.field select { font-family: var(--font-mono); cursor: pointer; }
+.field input:focus, .field textarea:focus, .field select:focus { outline: none; border-color: var(--accent-dim); box-shadow: var(--accent-glow); }
+/* File picker (create form) — match the accent buttons. */
+.field input[type="file"] { padding: 0.5rem 0.6rem; font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-soft); cursor: pointer; }
+.field input[type="file"]::file-selector-button {
+  font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.04em;
+  margin-right: 0.8rem; padding: 0.45rem 0.95rem;
+  border: 1px solid var(--accent-dim); border-radius: var(--radius-sm);
+  background: transparent; color: var(--accent); cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+.field input[type="file"]::file-selector-button:hover { background: var(--accent); color: var(--ink-900); }
 .modal .btn--accent { width: 100%; justify-content: center; margin-top: 0.5rem; padding: 0.8rem; }
 .modal .switch { text-align: center; margin-top: 1rem; font-size: 0.8rem; color: var(--text-soft); }
 .modal .switch button { color: var(--accent); font-family: var(--font-mono); font-size: 0.8rem; }

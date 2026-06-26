@@ -120,6 +120,14 @@ test("a super_admin can hide a project and remove a note", async ({ page }) => {
   await expect(page.locator("#book-overlay [data-hidden-badge]")).toBeVisible();
   await page.locator("#book-overlay .book-close").click();
   await expect(page.getByRole("button", { name: new RegExp(`Open .*${esc(title)}`) })).toHaveCount(0);
+
+  // role/trust now live on the user profile: open it from the header username and
+  // confirm the super_admin moderation editor is present and populated.
+  await page.locator("#header-actions .header-me").click();
+  await expect(page.locator("#modal-overlay .profile")).toBeVisible();
+  await expect(page.locator("#modal-overlay [data-save-admin]")).toBeVisible();
+  await expect(page.locator("#modal-overlay [data-role]")).toBeVisible();
+  await expect(page.locator("#modal-overlay [data-trust]")).toHaveValue("1");
 });
 
 // ADR-0003: a note left with a vote is persisted AND rendered back in the book.

@@ -4,6 +4,7 @@ import { initCircuits } from "./components/circuits.js";
 import { renderShelves } from "./components/shelf.js";
 import { openBook, bindCircuits } from "./components/book.js";
 import { renderHeader, openAuth, openProjectForm } from "./components/auth.js";
+import { openProfile } from "./components/profile.js";
 import { toast } from "./lib/toast.js";
 
 const els = {
@@ -34,6 +35,7 @@ function paintShelves() {
       onVoted,
       onFollow: (session) => { state.session = session; paintHeader(); },
       onModerated: reloadProjects,
+      onOpenProfile: showProfile,
     }),
     onCreate: () => openProjectForm(els.modal, { session: state.session, onSaved: onCreated }),
   });
@@ -44,6 +46,15 @@ function paintHeader() {
     modal: els.modal,
     onSession: setSession,
     onCreate: () => openProjectForm(els.modal, { session: state.session, onSaved: onCreated }),
+    onOpenProfile: showProfile,
+  });
+}
+
+// Open a user's profile (identity + follow + counts; role/trust for moderators).
+function showProfile(username) {
+  openProfile(els.modal, username, {
+    session: state.session,
+    onSession: (s) => { state.session = s; paintHeader(); },
   });
 }
 
