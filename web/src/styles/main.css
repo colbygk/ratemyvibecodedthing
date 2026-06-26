@@ -21,6 +21,18 @@ a { color: inherit; }
 button { font: inherit; color: inherit; cursor: pointer; background: none; border: none; }
 img, video { max-width: 100%; display: block; }
 
+/* ---- Themed scrollbars: subtle ink thumb on the dark shell that lights up to
+   the electric-teal accent on hover. The paper book pages override this below. ---- */
+* { scrollbar-width: thin; scrollbar-color: var(--ink-500) transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--ink-500); border-radius: 6px;
+  border: 2px solid transparent; background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--accent-dim); }
+::-webkit-scrollbar-corner { background: transparent; }
+
 /* utility */
 .mono { font-family: var(--font-mono); }
 .sr-only {
@@ -247,7 +259,11 @@ img, video { max-width: 100%; display: block; }
   background: linear-gradient(to right, transparent, rgba(0,0,0,0.18) 45%, rgba(0,0,0,0.22) 50%, rgba(0,0,0,0.18) 55%, transparent);
   pointer-events: none;
 }
-.page { padding: clamp(1.5rem, 4vw, 2.75rem); overflow-y: auto; }
+.page { padding: clamp(1.5rem, 4vw, 2.75rem); overflow-y: auto; scrollbar-gutter: stable; scrollbar-width: thin; scrollbar-color: rgba(42,141,126,0.5) transparent; }
+.page::-webkit-scrollbar { width: 8px; }
+.page::-webkit-scrollbar-track { background: transparent; }
+.page::-webkit-scrollbar-thumb { background: rgba(42,141,126,0.45); border-radius: 4px; border: 2px solid transparent; background-clip: padding-box; }
+.page::-webkit-scrollbar-thumb:hover { background: rgba(42,141,126,0.75); }
 .page--left { border-right: 1px solid var(--paper-shadow); }
 
 .book h2 {
@@ -367,6 +383,8 @@ img, video { max-width: 100%; display: block; }
   border: 1px solid var(--ink-600);
   display: flex; align-items: center; justify-content: center;
   font-family: var(--font-mono);
+  /* Sit above the pages so a page's scrollbar can't paint over the ✕. */
+  z-index: 3;
 }
 .book-close:hover { color: var(--accent); border-color: var(--accent-dim); }
 
