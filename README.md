@@ -7,8 +7,9 @@ visitor); account holders vote freely, leave free-form notes, and follow makers.
 
 Design: minimal, editorial, typography-forward (in the spirit of
 [Since You Arrived](https://www.awwwards.com/sites/since-you-arrived)), with an
-"AI" sensibility — Fraunces / Space Grotesk / Space Mono, dark ink ground, and
-faint PCB circuit traces with travelling light pulses around the periphery.
+"AI" sensibility — Fraunces / Space Grotesk / Space Mono, dark ink ground, and a
+faint, living node network in the periphery: nodes drift along a swirling flow
+field and link with curved filaments (an organic, reaction-diffusion feel).
 Built following the [ui-ux-pro-max-skill](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill)
 minimalism guidance.
 
