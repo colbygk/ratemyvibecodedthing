@@ -14,16 +14,10 @@ describe("spineStyle", () => {
     expect(seen.size).toBeGreaterThan(10);
   });
 
-  it("keeps width and height within the designed ranges", () => {
-    for (let i = 0; i < 200; i++) {
-      const s = spineStyle({ id: `seed-${i}` });
-      const w = parseInt(s["--spine-w"], 10);
-      const h = parseInt(s["--spine-h"], 10);
-      expect(w).toBeGreaterThanOrEqual(160);
-      expect(w).toBeLessThanOrEqual(200);
-      expect(h).toBeGreaterThanOrEqual(160);
-      expect(h).toBeLessThanOrEqual(190);
-    }
+  it("no longer emits per-project sizes (spines are a uniform responsive size)", () => {
+    const s = spineStyle({ id: "abc" });
+    expect(s["--spine-w"]).toBeUndefined();
+    expect(s["--spine-h"]).toBeUndefined();
   });
 
   it("provides a gradient cover derived from the color", () => {

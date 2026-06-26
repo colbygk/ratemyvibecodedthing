@@ -30,7 +30,8 @@ function createSpine(project, onOpen) {
   el.setAttribute("aria-label", `Open “${project.title}” by ${project.author}`);
   const style = spineStyle(project);
   Object.entries(style).forEach(([k, v]) => el.style.setProperty(k, v));
-  el.style.setProperty("--spine-title-size", `${titleFontPx(project.title, parseInt(style["--spine-w"], 10) || 170)}px`);
+  // Spines are a uniform responsive size now; size the title against a nominal width.
+  el.style.setProperty("--spine-title-size", `${titleFontPx(project.title, 170)}px`);
 
   const shot = shotURL(project.links?.[0]?.url);
   if (shot) {
@@ -42,6 +43,8 @@ function createSpine(project, onOpen) {
   el.innerHTML = `
     <span class="spine-cover" aria-hidden="true"></span>
     <span class="spine-tint" aria-hidden="true"></span>
+    <span class="spine-scrim spine-scrim--top" aria-hidden="true"></span>
+    <span class="spine-scrim spine-scrim--bottom" aria-hidden="true"></span>
     <span class="spine-score">${net >= 0 ? "+" : ""}${net}</span>
     <span class="spine-foot">
       <span class="spine-title">${escape(project.title)}</span>
@@ -54,8 +57,6 @@ function createAddSpine(onCreate) {
   const el = document.createElement("button");
   el.className = "spine spine--add";
   el.type = "button";
-  el.style.setProperty("--spine-w", "170px");
-  el.style.setProperty("--spine-h", "180px");
   el.setAttribute("aria-label", "Submit a new vibe-coded project");
   el.innerHTML = `<span class="plus">+</span><span class="spine-foot"><span class="spine-title">add a thing</span></span>`;
   el.addEventListener("click", () => onCreate?.());

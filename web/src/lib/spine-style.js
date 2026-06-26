@@ -1,5 +1,6 @@
 // Deterministic spine appearance derived from a project id/title.
-// Same input -> same cloth color, foil, height & width. Library-cloth palette.
+// Same input -> same cloth color, foil & gradient. Library-cloth palette.
+// Spine dimensions are uniform and responsive (set in CSS), not per-project.
 
 const CLOTH = [
   { bg: "#3a4a44", text: "#f1ece0" }, // forest
@@ -36,8 +37,6 @@ export function spineStyle(project) {
   // Use unsigned shifts (>>>): the hash can exceed 2^31, and signed >> would
   // go negative and push width/height out of their intended ranges.
   const foil = FOIL[(h >>> 8) % FOIL.length];
-  const width = 160 + ((h >>> 3) % 40);          // 160–199px (cover tiles)
-  const height = 160 + ((h >>> 5) % 28);         // 160–187px (short, squat covers)
   // Rich gradient (not flat): dark crown → color wash at the foot. Used as the
   // cover when there's no screenshot, and as a tint over screenshots.
   const grad = `linear-gradient(180deg, #08090d 0%, ${cloth.bg}1f 42%, ${cloth.bg}cc 100%)`;
@@ -50,8 +49,6 @@ export function spineStyle(project) {
     "--spine-foil": foil,
     "--spine-grad": grad,
     "--spine-wash": wash,
-    "--spine-w": `${width}px`,
-    "--spine-h": `${height}px`,
   };
 }
 

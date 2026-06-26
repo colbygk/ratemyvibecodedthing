@@ -158,8 +158,11 @@ img, video { max-width: 100%; display: block; }
 .spine {
   position: relative;
   flex: 0 0 auto;
-  width: var(--spine-w, 170px);
-  height: var(--spine-h, 180px);
+  /* Every cover is the SAME size, but the size tracks the viewport (responsive).
+     A fixed aspect-ratio keeps the proportions identical at any width. */
+  width: clamp(132px, 13.5vw, 180px);
+  aspect-ratio: 9 / 10;   /* height derives from width → all tiles match */
+  height: auto;
   background: #08090d;
   border-radius: 3px;
   cursor: pointer;
@@ -189,6 +192,26 @@ img, video { max-width: 100%; display: block; }
 .spine--shot .spine-tint {
   display: block; position: absolute; inset: 0;
   background: var(--spine-wash); pointer-events: none;
+}
+
+/* Legibility scrims: blurred, darkened strips at the crown and foot so the score
+   and title hold contrast even over a bright screenshot. Each strip fades to
+   nothing at its inner edge (mask) so there's no hard seam across the cover. */
+.spine-scrim {
+  position: absolute; left: 0; right: 0; pointer-events: none;
+  -webkit-backdrop-filter: blur(2.5px); backdrop-filter: blur(2.5px);
+}
+.spine-scrim--top {
+  top: 0; height: 38%;
+  background: linear-gradient(180deg, rgba(6,7,11,0.82) 0%, rgba(6,7,11,0.42) 55%, rgba(6,7,11,0) 100%);
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 48%, transparent 100%);
+          mask-image: linear-gradient(180deg, #000 0%, #000 48%, transparent 100%);
+}
+.spine-scrim--bottom {
+  bottom: 0; height: 52%;
+  background: linear-gradient(0deg, rgba(6,7,11,0.86) 0%, rgba(6,7,11,0.5) 50%, rgba(6,7,11,0) 100%);
+  -webkit-mask-image: linear-gradient(0deg, #000 0%, #000 55%, transparent 100%);
+          mask-image: linear-gradient(0deg, #000 0%, #000 55%, transparent 100%);
 }
 
 .spine-score {
@@ -488,7 +511,8 @@ img, video { max-width: 100%; display: block; }
   .follow-stats { display: none; }
   .btn { padding: 0.45rem 0.75rem; }
   /* smaller cover tiles + shorter rows on phones */
-  .shelf { --row-h: 200px; }
-  .spine { width: clamp(128px, 44vw, 170px) !important; height: clamp(150px, 40vw, 185px) !important; }
+  .shelf { --row-h: 210px; }
+  /* Bigger on phones to fill the narrow width — still one uniform size for all. */
+  .spine { width: clamp(140px, 44vw, 188px) !important; height: auto !important; }
   .spine-title { font-size: min(0.92rem, var(--spine-title-size, 0.92rem)); }
 }
