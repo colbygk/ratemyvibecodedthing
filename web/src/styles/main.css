@@ -302,6 +302,11 @@ img, video { max-width: 100%; display: block; }
 .media-grid { display: grid; gap: 0.6rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); margin-bottom: 1.25rem; }
 .media-grid img, .media-grid video { border-radius: var(--radius-sm); aspect-ratio: 16/10; object-fit: cover; width: 100%; max-height: 420px; }
 .media-grid img { cursor: zoom-in; }
+.media-item { position: relative; margin: 0; min-width: 0; }
+/* Owner's per-item remove control (current version only). */
+.media-del { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; border: none; cursor: pointer; font-size: 0.78rem; line-height: 1; color: #fff; background: rgba(8,10,12,0.66); opacity: 0; transition: opacity 0.15s, background 0.15s; }
+.media-item:hover .media-del, .media-del:focus-visible { opacity: 1; }
+.media-del:hover { background: #c0533b; }
 
 /* Click-to-zoom lightbox: image as large as the viewport allows. */
 .lightbox { position: fixed; inset: 0; z-index: var(--z-lightbox); display: grid; place-items: center; padding: 2.5vmin; background: rgba(8, 10, 12, 0.92); cursor: zoom-out; }

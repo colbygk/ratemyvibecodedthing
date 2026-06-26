@@ -126,6 +126,18 @@ export const api = {
     }
     return res.json();
   },
+  // Remove a media item from the current version (owner). `url` is the stored
+  // media url ("/media/<key>" or a mock url). Returns the updated media array.
+  async deleteMedia(id, url) {
+    if (MOCK_MODE) {
+      const p = mockStore.find((x) => x.id === id);
+      if (!p) throw new Error("Not found");
+      p.media = (p.media || []).filter((m) => m.url !== url);
+      return { media: structuredClone(p.media) };
+    }
+    const key = String(url).replace(/^\/media\//, "");
+    return req(`/projects/${id}/media/${key}`, { method: "DELETE", auth: true });
+  },
 
   /* --- voting (anon: 1 per IP server-side; logged-in: may add a note) --- */
   async vote(id, dir, note) {

@@ -77,6 +77,16 @@ describe("api (mock mode)", () => {
     expect(fetched.media).toHaveLength(1);
   });
 
+  it("removes a media item from a project (mock)", async () => {
+    await api.signup("nova", "secret");
+    const created = await api.createProject({ title: "Has Media" });
+    const up = await api.uploadMedia(created.id, { name: "a.png", type: "image/png" });
+    const url = up.media[0].url;
+    const res = await api.deleteMedia(created.id, url);
+    expect(res.media).toHaveLength(0);
+    expect((await api.getProject(created.id)).media).toHaveLength(0);
+  });
+
   it("exposes a shared media cap of 3", async () => {
     const { MAX_MEDIA } = await import("../src/lib/api.js");
     expect(MAX_MEDIA).toBe(3);

@@ -71,6 +71,10 @@ test("owner can upload media and it serves back from R2", async ({ page }) => {
   await expect(page.locator(".lightbox")).toHaveCount(0);
   // and the book overlay is still open underneath (Escape closed only the lightbox)
   await expect(page.locator("#book-overlay .media-grid")).toBeVisible();
+
+  // owner removes the media item → grid goes empty
+  await page.locator("#book-overlay .media-del").first().click();
+  await expect(page.locator("#book-overlay .media-grid img")).toHaveCount(0);
 });
 
 // ADR-0002: media can be attached during creation (not only after).

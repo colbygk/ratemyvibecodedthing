@@ -52,7 +52,7 @@ export async function openBook(overlay, id, { session, onAuthNeeded, onEdit, onV
       </section>
 
       <section class="page page--right">
-        ${renderMedia(project.media)}
+        ${renderMedia(project.media, isOwner)}
         ${isOwner
           ? `<div class="media-upload"${mediaCount >= maxMedia ? " hidden" : ""}>
                <label class="link-btn" for="media-file">＋ add image / video</label>
@@ -197,7 +197,7 @@ export async function openBook(overlay, id, { session, onAuthNeeded, onEdit, onV
     overlay.querySelector("[data-title]").textContent = doc.title || "";
     overlay.querySelector("[data-desc]").textContent = doc.description || "No description supplied.";
     overlay.querySelector("[data-links]").innerHTML = renderLinksInner(doc.links);
-    overlay.querySelector(".media-grid").outerHTML = renderMedia(doc.media);
+    overlay.querySelector(".media-grid").outerHTML = renderMedia(doc.media, isCur && isOwner);
     const cl = overlay.querySelector("[data-vchangelog]");
     const text = vmeta.find((x) => x.v === v)?.changelog || doc.changelog || "";
     cl.textContent = text ? `“${text}”` : "";
@@ -226,7 +226,7 @@ export async function openBook(overlay, id, { session, onAuthNeeded, onEdit, onV
     try {
       const res = await api.uploadMedia(id, file);
       project.media = res.media; // keep current-version media in sync for flipping
-      overlay.querySelector(".media-grid").outerHTML = renderMedia(res.media);
+      overlay.querySelector(".media-grid").outerHTML = renderMedia(res.media, isOwner);
       if (mediaCountEl) mediaCountEl.textContent = `${res.media.length} / ${maxMedia}`;
       if (res.media.length >= maxMedia && mediaUpload) mediaUpload.hidden = true;
       toast("Media added");
@@ -235,6 +235,22 @@ export async function openBook(overlay, id, { session, onAuthNeeded, onEdit, onV
     } finally {
       fileInput.value = "";
     }
+  });
+
+  // Remove a media item from the current version (owner). Buttons only render on
+  // the current version, so this is naturally scoped to it.
+  overlay.addEventListener("click", async (e) => {
+    const btn = e.target.closest("[data-del-media]");
+    if (!btn) return;
+    btn.disabled = true;
+    try {
+      const res = await api.deleteMedia(id, btn.dataset.delMedia);
+      project.media = res.media;
+      overlay.querySelector(".media-grid").outerHTML = renderMedia(res.media, isOwner);
+      if (mediaCountEl) mediaCountEl.textContent = `${res.media.length} / ${maxMedia}`;
+      if (mediaUpload && res.media.length < maxMedia) mediaUpload.hidden = false;
+      toast("Media removed");
+    } catch (err) { toast(err.message); btn.disabled = false; }
   });
 
   overlay.querySelectorAll(".vote-btn").forEach((btn) =>
@@ -300,16 +316,18 @@ function renderLinksInner(links) {
     .join("");
 }
 
-function renderMedia(media) {
+function renderMedia(media, canDelete = false) {
   if (!media?.length) {
     return `<div class="media-grid" aria-hidden="true" style="opacity:.5"><div style="aspect-ratio:4/3;border:1px dashed var(--paper-shadow);border-radius:4px;display:grid;place-items:center;font-family:var(--font-mono);font-size:.7rem;color:var(--paper-ink-soft)">no media</div></div>`;
   }
   return `<div class="media-grid">${media
-    .map((m) =>
-      m.type === "video"
+    .map((m) => {
+      const inner = m.type === "video"
         ? `<video src="${escape(mediaUrl(m.url))}" controls preload="metadata"></video>`
-        : `<img src="${escape(mediaUrl(m.url))}" alt="${escape(m.alt || "project screenshot")}" loading="lazy" />`
-    )
+        : `<img src="${escape(mediaUrl(m.url))}" alt="${escape(m.alt || "project screenshot")}" loading="lazy" />`;
+      const del = canDelete ? `<button class="media-del" title="Remove" aria-label="Remove media" data-del-media="${escape(m.url)}">✕</button>` : "";
+      return `<figure class="media-item">${inner}${del}</figure>`;
+    })
     .join("")}</div>`;
 }
 

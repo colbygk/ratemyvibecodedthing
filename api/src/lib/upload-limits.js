@@ -7,6 +7,8 @@
  */
 
 const MB = 1024 * 1024;
+const VIDEO_FLOOR = 50 * MB; // video gets at least this, regardless of trust tier
+const CEILING = 95 * MB;     // stay under the 100 MB Worker request-body wall
 
 // Highest minTrust first; uploadLimitsFor picks the first tier the user qualifies
 // for. Keep maxBytes < 100 MB (Worker wall) at every tier.
@@ -21,10 +23,13 @@ export function uploadLimitsFor(trust, env = {}) {
   const t = Number.isFinite(Number(trust)) ? Number(trust) : 1;
   const tier = UPLOAD_TIERS.find((x) => t >= x.minTrust) || UPLOAD_TIERS[UPLOAD_TIERS.length - 1];
 
-  let maxBytes = tier.maxBytes;
   // Optional ops kill-switch: MAX_UPLOAD_BYTES only ever lowers the ceiling.
   const override = env && env.MAX_UPLOAD_BYTES ? parseInt(env.MAX_UPLOAD_BYTES, 10) : 0;
-  if (override > 0) maxBytes = Math.min(maxBytes, override);
+  const clamp = (b) => (override > 0 ? Math.min(b, override) : b);
 
-  return { maxBytes, maxMedia: tier.maxMedia };
+  return {
+    maxBytes: clamp(Math.min(tier.maxBytes, CEILING)),                          // images
+    maxVideoBytes: clamp(Math.min(Math.max(tier.maxBytes, VIDEO_FLOOR), CEILING)), // video ≥ 50 MB
+    maxMedia: tier.maxMedia,
+  };
 }

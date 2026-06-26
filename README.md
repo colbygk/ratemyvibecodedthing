@@ -142,7 +142,8 @@ GET    /projects/:id/notes     → {notes:[{username, note}]}  (public read)
 POST   /projects/:id/versions  (Bearer, owner) publish a new doc version (ADR-0007)
 GET    /projects/:id/versions  → {versions:[{v, created, changelog, current}]}
 GET    /projects/:id/versions/:v → that version's preserved docs
-POST   /projects/:id/media     (Bearer, raw image/video body) → R2  (max 3/project)
+POST   /projects/:id/media     (Bearer, raw image/video body) → R2  (img 25MB+, video 50MB+)
+DELETE /projects/:id/media/<key> (Bearer, owner) remove media from current version
 GET    /media/<key>            serve R2 object
 
 GET    /me/projects            (Bearer) your submissions

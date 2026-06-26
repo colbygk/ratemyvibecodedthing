@@ -4,9 +4,16 @@ import { uploadLimitsFor, UPLOAD_TIERS } from "../src/lib/upload-limits.js";
 const MB = 1024 * 1024;
 
 describe("uploadLimitsFor(trust)", () => {
-  it("tier 1 (new accounts) keeps today's 25 MB / 3 — no regression", () => {
-    expect(uploadLimitsFor(1)).toEqual({ maxBytes: 25 * MB, maxMedia: 3 });
-    expect(uploadLimitsFor(0)).toEqual({ maxBytes: 25 * MB, maxMedia: 3 });
+  it("tier 1 (new accounts) keeps today's 25 MB image / 3 — no regression", () => {
+    expect(uploadLimitsFor(1)).toMatchObject({ maxBytes: 25 * MB, maxMedia: 3 });
+    expect(uploadLimitsFor(0)).toMatchObject({ maxBytes: 25 * MB, maxMedia: 3 });
+  });
+
+  it("video gets at least 50 MB even on tier 1", () => {
+    expect(uploadLimitsFor(1).maxVideoBytes).toBe(50 * MB);
+    expect(uploadLimitsFor(5).maxVideoBytes).toBe(50 * MB);   // tier image already 50
+    expect(uploadLimitsFor(10).maxVideoBytes).toBe(90 * MB);  // higher tier video tracks image
+    expect(uploadLimitsFor(10).maxVideoBytes).toBeLessThan(100 * MB);
   });
 
   it("grants more as trust rises (monotonic, additive)", () => {
@@ -33,14 +40,15 @@ describe("uploadLimitsFor(trust)", () => {
   });
 
   it("treats a bad/absent trust as tier 1", () => {
-    expect(uploadLimitsFor(undefined)).toEqual({ maxBytes: 25 * MB, maxMedia: 3 });
-    expect(uploadLimitsFor("nonsense")).toEqual({ maxBytes: 25 * MB, maxMedia: 3 });
+    expect(uploadLimitsFor(undefined)).toMatchObject({ maxBytes: 25 * MB, maxMedia: 3 });
+    expect(uploadLimitsFor("nonsense")).toMatchObject({ maxBytes: 25 * MB, maxMedia: 3 });
   });
 
-  it("MAX_UPLOAD_BYTES env acts as a hard upper clamp over the whole ladder", () => {
+  it("MAX_UPLOAD_BYTES env acts as a hard upper clamp over images and video", () => {
     const env = { MAX_UPLOAD_BYTES: String(8 * MB) };
-    expect(uploadLimitsFor(10, env).maxBytes).toBe(8 * MB); // clamped down from 90
-    expect(uploadLimitsFor(1, env).maxBytes).toBe(8 * MB);  // clamped down from 25
+    expect(uploadLimitsFor(10, env).maxBytes).toBe(8 * MB);       // clamped down from 90
+    expect(uploadLimitsFor(1, env).maxBytes).toBe(8 * MB);        // clamped down from 25
+    expect(uploadLimitsFor(1, env).maxVideoBytes).toBe(8 * MB);   // clamps video too
   });
 
   it("ignores an env clamp that is larger than the tier (clamp only lowers)", () => {

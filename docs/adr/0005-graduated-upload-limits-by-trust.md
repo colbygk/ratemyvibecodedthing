@@ -67,6 +67,10 @@ mechanism, or with the tier-1 size raised to today's 25 MB to avoid a regression
 - **Trust-change mechanism:** a super_admin sets a user's trust via
   `POST /users/:name/trust` (ADR-0006). Automated/behavioral progression remains
   future work.
+- **Video gets a higher per-file cap than images:** `uploadLimitsFor` returns a
+  separate `maxVideoBytes` with a **50 MB floor** (so even tier-1 video is 50 MB),
+  rising with the tier and clamped under the 100 MB Worker wall. The media
+  endpoint picks the cap by content-type.
 
 ## Consequences
 

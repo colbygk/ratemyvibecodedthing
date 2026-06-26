@@ -74,6 +74,7 @@ async function route(request, env, ctx) {
   if (seg[0] === "projects" && seg[1] && seg[2] === "notes" && !seg[3] && m === "GET") return listNotes(seg[1], env);
   if (seg[0] === "projects" && seg[1] && seg[2] === "notes" && seg[3] && m === "DELETE") return removeNote(seg[1], seg[3], request, env);
   if (seg[0] === "projects" && seg[1] && seg[2] === "media" && m === "POST") return uploadMedia(seg[1], request, env);
+  if (seg[0] === "projects" && seg[1] && seg[2] === "media" && seg[3] && m === "DELETE") return deleteMedia(seg[1], seg.slice(3).join("/"), request, env);
   if (seg[0] === "projects" && seg[1] && seg[2] === "hide" && m === "POST") return hideProject(seg[1], request, env);
   // ---- documentation versions (ADR-0007) ----
   if (seg[0] === "projects" && seg[1] && seg[2] === "versions" && !seg[3] && m === "GET") return listVersions(seg[1], env);
@@ -528,11 +529,14 @@ async function uploadMedia(id, request, env) {
 
   const type = request.headers.get("content-type") || "application/octet-stream";
   if (!/^image\/|^video\//.test(type)) throw httpError("Only image/video uploads allowed", 415);
+  const kind = type.startsWith("video/") ? "video" : "image";
 
   // Trust-graduated limits (ADR-0005): the uploader's trust sets per-file size and
   // per-project media count. Tier 1 == today's 25 MB / 3, so no one regresses.
+  // Video gets a higher per-file cap (50 MB floor) than images.
   const trust = await redis(env, ["HGET", `user:${username.toLowerCase()}`, "trust"]);
   const limits = uploadLimitsFor(trust, env);
+  const perFile = kind === "video" ? limits.maxVideoBytes : limits.maxBytes;
 
   // Count cap — check BEFORE the R2 write so a rejected upload never orphans an
   // object in the bucket.
@@ -543,16 +547,39 @@ async function uploadMedia(id, request, env) {
   // daily upload-op limit BEFORE writing to R2 (R2 has no provider-side auto-stop).
   const r1 = (cmd) => redis(env, cmd);
   const bytes = Number(request.headers.get("content-length") || 0);
-  await reserveStorage(r1, env, bytes, Date.now(), limits.maxBytes);
+  await reserveStorage(r1, env, bytes, Date.now(), perFile);
   await consume(r1, env, "r2_upload", Date.now());
 
   const ext = type.split("/")[1]?.split(";")[0] || "bin";
   const objectKey = `${id}/${randomHex(8)}.${ext}`;
   await env.MEDIA.put(objectKey, request.body, { httpMetadata: { contentType: type } });
 
-  const kind = type.startsWith("video/") ? "video" : "image";
   media.push({ type: kind, url: `/media/${objectKey}` });
   await redis(env, ["HSET", `project:${id}`, "media", JSON.stringify(media.slice(0, limits.maxMedia))]);
+  return json({ media });
+}
+
+// Remove a media item from a project's CURRENT version (owner only). Frees the R2
+// object + releases its storage. Safe because current-version media isn't shared
+// with prior version snapshots (ADR-0007); older versions stay immutable.
+async function deleteMedia(id, key, request, env) {
+  if (!env.MEDIA) throw httpError("Media storage not enabled yet", 503);
+  const username = await requireUser(request, env);
+  const owner = await redis(env, ["HGET", `project:${id}`, "author"]);
+  if (!owner) throw httpError("Not found", 404);
+  if (owner.toLowerCase() !== username.toLowerCase()) throw httpError("Not your project", 403);
+
+  const media = safeJSON(await redis(env, ["HGET", `project:${id}`, "media"]), []);
+  const idx = media.findIndex((m) => mediaKeyFromUrl(m.url) === key || m.url === `/media/${key}`);
+  if (idx < 0) throw httpError("Media not found on this version", 404);
+  media.splice(idx, 1);
+  await redis(env, ["HSET", `project:${id}`, "media", JSON.stringify(media)]);
+
+  try {
+    const head = await env.MEDIA.head(key);
+    await env.MEDIA.delete(key);
+    if (head?.size) await releaseStorage((cmd) => redis(env, cmd), env, head.size);
+  } catch { /* ignore cleanup failures */ }
   return json({ media });
 }
 
