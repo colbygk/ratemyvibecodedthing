@@ -90,6 +90,48 @@ test("media attached at creation appears in the book", async ({ page }) => {
   await expect.poll(() => img.evaluate((n) => n.complete && n.naturalWidth > 0)).toBe(true);
 });
 
+// ADR-0007: documentation versions — publish, list, fetch a prior version, and
+// owner-only enforcement. Exercised at the API level (the book UX lands later).
+test("project documentation versions (API)", async ({ request }) => {
+  const base = process.env.E2E_API_URL;
+  const mk = async (name) => (await (await request.post(`${base}/auth/signup`, { data: { username: name, password: "secret123" } })).json()).token;
+
+  const owner = `ver${uniq()}`.slice(0, 24);
+  const token = await mk(owner);
+  const auth = { Authorization: `Bearer ${token}` };
+
+  const created = await (await request.post(`${base}/projects`, { headers: auth, data: { title: `Ver ${uniq()}`, description: "v1 desc" } })).json();
+  const id = created.id;
+  expect(created.version).toBe(1);
+
+  // publish v2
+  const pub = await request.post(`${base}/projects/${id}/versions`, { headers: auth, data: { title: created.title, description: "v2 desc", changelog: "reworked the writeup" } });
+  expect(pub.status()).toBe(201);
+  const cur = await pub.json();
+  expect(cur.version).toBe(2);
+  expect(cur.description).toBe("v2 desc");
+
+  // current project read reflects v2; votes/identity unchanged
+  const proj = await (await request.get(`${base}/projects/${id}`)).json();
+  expect(proj.version).toBe(2);
+  expect(proj.up).toBe(0);
+
+  // list shows both, newest current
+  const list = await (await request.get(`${base}/projects/${id}/versions`)).json();
+  expect(list.versions.map((x) => x.v).sort()).toEqual([1, 2]);
+  expect(list.versions.find((x) => x.current).v).toBe(2);
+
+  // fetch v1 → original description preserved
+  const v1 = await (await request.get(`${base}/projects/${id}/versions/1`)).json();
+  expect(v1.description).toBe("v1 desc");
+  expect(v1.isCurrent).toBe(false);
+
+  // a non-owner cannot publish
+  const intruder = await mk(`ver${uniq()}x`.slice(0, 24));
+  const forbidden = await request.post(`${base}/projects/${id}/versions`, { headers: { Authorization: `Bearer ${intruder}` }, data: { title: created.title } });
+  expect(forbidden.status()).toBe(403);
+});
+
 // A project can carry both a live-demo and a repo link, shown in the book.
 test("a project can carry a repo link, shown in the book", async ({ page }) => {
   await signup(page);

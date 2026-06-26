@@ -43,4 +43,4 @@ Numbers are zero-padded, monotonic, and never reused.
 | [0004](0004-per-user-trust-score.md) | Per-user trust score | Accepted |
 | [0005](0005-graduated-upload-limits-by-trust.md) | Graduated upload limits by trust | Accepted |
 | [0006](0006-role-based-access-control-via-jwt.md) | Role-based access control via JWT claims | Accepted |
-| [0007](0007-project-documentation-versions.md) | Versioned project documentation | Proposed |
+| [0007](0007-project-documentation-versions.md) | Versioned project documentation | Accepted |

@@ -7,7 +7,8 @@
  *
  * Redis key map:
  *   user:<username>           HASH  { pwhash, salt, created, username, trust, role, bio, github, links(JSON) }
- *   project:<id>              HASH  { title, author, description, links(JSON), media(JSON), up, down, created, hidden }
+ *   project:<id>              HASH  { title, author, description, links(JSON), media(JSON), up, down, created, hidden, version, versionAt, changelog }
+ *   project:<id>:versions     LIST  JSON snapshots of superseded doc versions (ADR-0007)
  *   projects:byScore          ZSET  member=<id> score=(up-down)   -> shelf ordering
  *   projects:byNew            ZSET  member=<id> score=created
  *   user:<username>:projects  SET   project ids
@@ -19,7 +20,8 @@
 
 import { hashPassword, signJWT, verifyJWT, randomHex, timingSafeEqual } from "./lib/crypto.js";
 import { json, cors, httpError, clientIP, safeJSON, validateCreds, hashArrayToObject, allowedOrigin } from "./lib/util.js";
-import { consume, reserveStorage, usageToday } from "./lib/quota.js";
+import { consume, reserveStorage, releaseStorage, usageToday } from "./lib/quota.js";
+import { MAX_HISTORY, snapshotOf, sanitizeChangelog, mediaKeyFromUrl } from "./lib/version.js";
 import { sanitizeProjectEdits, editsToHSET, assertMediaCapacity } from "./lib/project.js";
 import { newUserFields, publicUserShape } from "./lib/user.js";
 import { sanitizeProfileEdits, profileToHSET } from "./lib/profile.js";
@@ -73,6 +75,10 @@ async function route(request, env, ctx) {
   if (seg[0] === "projects" && seg[1] && seg[2] === "notes" && seg[3] && m === "DELETE") return removeNote(seg[1], seg[3], request, env);
   if (seg[0] === "projects" && seg[1] && seg[2] === "media" && m === "POST") return uploadMedia(seg[1], request, env);
   if (seg[0] === "projects" && seg[1] && seg[2] === "hide" && m === "POST") return hideProject(seg[1], request, env);
+  // ---- documentation versions (ADR-0007) ----
+  if (seg[0] === "projects" && seg[1] && seg[2] === "versions" && !seg[3] && m === "GET") return listVersions(seg[1], env);
+  if (seg[0] === "projects" && seg[1] && seg[2] === "versions" && !seg[3] && m === "POST") return publishVersion(seg[1], request, env);
+  if (seg[0] === "projects" && seg[1] && seg[2] === "versions" && seg[3] && m === "GET") return getVersion(seg[1], seg[3], env);
 
   // ---- media serving ----
   if (seg[0] === "media" && seg[1] && m === "GET") return serveMedia(seg.slice(1).join("/"), env);
@@ -199,6 +205,9 @@ async function readProject(id, env) {
     coverSeed: h.coverSeed || h.title,
     created: Number(h.created || 0),
     hidden: h.hidden === "1",
+    version: Number(h.version || 1),               // current doc version (ADR-0007)
+    versionAt: Number(h.versionAt || h.created || 0),
+    changelog: h.changelog || "",
   };
 }
 
@@ -244,6 +253,106 @@ async function myProjects(request, env) {
   const ids = (await redis(env, ["SMEMBERS", `user:${username.toLowerCase()}:projects`])) || [];
   const projects = await Promise.all(ids.map((id) => readProject(id, env)));
   return json(projects.filter(Boolean));
+}
+
+/* ============================ Versions (ADR-0007) ============================ */
+// Publish a new documentation version (owner only). The current version is
+// snapshotted into history; the project record becomes the new version (starting
+// with empty media, which the owner re-uploads). Votes/notes are untouched, so
+// reception spans all versions.
+async function publishVersion(id, request, env) {
+  const username = await requireUser(request, env);
+  const existing = await readProject(id, env);
+  if (!existing) throw httpError("Not found", 404);
+  if (existing.author.toLowerCase() !== username.toLowerCase()) throw httpError("Only the owner can publish a version", 403);
+
+  const body = await request.json();
+  const edits = sanitizeProjectEdits({
+    title: body.title ?? existing.title,
+    description: body.description ?? "",
+    links: body.links ?? [],
+    coverColor: body.coverColor ?? existing.coverColor ?? "",
+  });
+  if (!edits.title) throw httpError("Title required", 400);
+  const changelog = sanitizeChangelog(body.changelog);
+
+  // snapshot the now-previous version, then trim history (+ prune dropped media)
+  await redis(env, ["RPUSH", `project:${id}:versions`, JSON.stringify(snapshotOf(existing))]);
+  await pruneHistory(id, env);
+
+  const newV = existing.version + 1;
+  await redis(env, ["HSET", `project:${id}`,
+    ...editsToHSET(edits),
+    "media", JSON.stringify([]),
+    "version", String(newV),
+    "versionAt", Date.now().toString(),
+    "changelog", changelog,
+  ]);
+  return json(await readProject(id, env), 201);
+}
+
+// Keep only the last MAX_HISTORY snapshots; delete pruned versions' R2 media and
+// release their storage. Best-effort — a cleanup failure never blocks publishing.
+async function pruneHistory(id, env) {
+  const key = `project:${id}:versions`;
+  const len = Number(await redis(env, ["LLEN", key]));
+  if (len <= MAX_HISTORY) return;
+  const drop = len - MAX_HISTORY;
+  const dropped = (await redis(env, ["LRANGE", key, "0", String(drop - 1)])) || []; // oldest at head
+  await redis(env, ["LTRIM", key, String(drop), "-1"]);
+  for (const raw of dropped) {
+    const snap = safeJSON(raw, null);
+    for (const mItem of snap?.media || []) {
+      const k = mediaKeyFromUrl(mItem.url);
+      if (!k || !env.MEDIA) continue;
+      try {
+        const head = await env.MEDIA.head(k);
+        await env.MEDIA.delete(k);
+        if (head?.size) await releaseStorage((cmd) => redis(env, cmd), env, head.size);
+      } catch { /* ignore cleanup failures */ }
+    }
+  }
+}
+
+async function listVersions(id, env) {
+  const cur = await readProject(id, env);
+  if (!cur) throw httpError("Not found", 404);
+  const hist = (await redis(env, ["LRANGE", `project:${id}:versions`, "0", "-1"])) || [];
+  const versions = hist
+    .map((raw) => safeJSON(raw, null))
+    .filter(Boolean)
+    .map((s) => ({ v: Number(s.v), created: Number(s.created || 0), changelog: s.changelog || "", current: false }));
+  versions.push({ v: cur.version, created: cur.versionAt, changelog: cur.changelog, current: true });
+  versions.sort((a, b) => b.v - a.v); // newest first
+  return json({ versions });
+}
+
+async function getVersion(id, v, env) {
+  const cur = await readProject(id, env);
+  if (!cur) throw httpError("Not found", 404);
+  const want = Number(v);
+  if (want === cur.version) {
+    return json(versionView({ ...cur, v: cur.version, created: cur.versionAt }, true));
+  }
+  const hist = (await redis(env, ["LRANGE", `project:${id}:versions`, "0", "-1"])) || [];
+  for (const raw of hist) {
+    const s = safeJSON(raw, null);
+    if (s && Number(s.v) === want) return json(versionView(s, false));
+  }
+  throw httpError("Version not found", 404);
+}
+
+function versionView(s, isCurrent) {
+  return {
+    title: s.title,
+    description: s.description || "",
+    links: s.links || [],
+    media: s.media || [],
+    v: Number(s.v ?? s.version ?? 1),
+    changelog: s.changelog || "",
+    created: Number(s.created ?? 0),
+    isCurrent,
+  };
 }
 
 /* ============================ Voting ============================ */

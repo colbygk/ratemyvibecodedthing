@@ -1,13 +1,14 @@
 # ADR-0007: Versioned project documentation
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-06-26
 - **Deciders:** cgk
 - **Supersedes:** —
 - **Superseded by:** —
 
-> **Proposed** — not implemented. A design for review. Touches the project data
-> model, the API, and the book UX; relates to [ADR-0002](0002-media-capture-and-presentation.md)
+> **Accepted.** The four open questions are resolved (see **Decisions** below).
+> The API/data-model is being implemented; the book "flip back through versions"
+> UX follows. Relates to [ADR-0002](0002-media-capture-and-presentation.md)
 > (media), [ADR-0003](0003-surface-project-notes.md) (notes), and
 > [ADR-0005](0005-graduated-upload-limits-by-trust.md) (upload limits/cost).
 
@@ -97,16 +98,30 @@ v1 from the current fields. No data rewrite needed up front.
 - **Edit-vs-version ambiguity** must be surfaced in the UI so makers don't
   accidentally erase history with an in-place edit.
 
-## Open questions
+## Decisions (resolved)
 
-- **Notes:** project-level (default, simplest — a note rides the whole project) or
-  pinned to the version they were left on? Per-version notes give context but
-  complicate the read path and the "votes/notes span all versions" story.
-- **Title changes:** the spine shows the current title; should a renamed thing
-  keep the same project, or is a rename a new project? (Proposed: same project —
-  title is versioned in the snapshot, spine reflects current.)
-- **Who may publish versions:** owner only, or also moderators?
-- **Version retention limit** and pruning policy (cost control).
+1. **Notes are project-level** — a note rides the whole project (consistent with
+   votes spanning versions). Not pinned to a version.
+2. **A rename is the same project** — `title` is versioned in each snapshot, and
+   the spine reflects the current title. No new project on rename.
+3. **Owner-only publishing** — only the project's author may publish a new
+   version. (Moderators can still hide a project, per ADR-0006, but don't author
+   someone's content.)
+4. **Retention: keep the last 5 versions** (current + 4 in history). The
+   per-version media cap is the uploader's trust tier (ADR-0005). When a version
+   is pruned out of history, its R2 media is deleted and the storage quota counter
+   is released, so storage stays bounded.
+
+### As-built notes
+
+- **Media is per-version and does not carry over:** a newly published version
+  starts with *empty* media; the owner uploads fresh media for it (via the
+  existing media endpoint, which targets the current version). The previous
+  version keeps its own media in its snapshot. This keeps pruning safe — a pruned
+  version's R2 objects are exclusively its own, so deleting them can't break a
+  surviving version.
+- Migration: existing projects read back as **v1** implicitly (`version` defaults
+  to 1); the first publish creates v2 and the prior state becomes the v1 snapshot.
 
 ## Alternatives considered
 

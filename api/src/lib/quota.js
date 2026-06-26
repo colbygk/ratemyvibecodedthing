@@ -85,6 +85,14 @@ export async function reserveStorage(redis, env, bytes, nowMs, perFileMax) {
   return total;
 }
 
+// Release `bytes` of reserved storage (e.g. when a pruned project version's media
+// is deleted from R2). Floors the counter at 0.
+export async function releaseStorage(redis, env, bytes) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return;
+  const total = Number(await redis(["DECRBY", STORAGE_KEY, String(bytes)]));
+  if (total < 0) await redis(["SET", STORAGE_KEY, "0"]);
+}
+
 /** Snapshot of today's usage vs. limits — for a status endpoint / banner. */
 export async function usageToday(redis, env, nowMs) {
   const out = {};
