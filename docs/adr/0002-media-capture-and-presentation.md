@@ -4,7 +4,9 @@
 - **Date:** 2026-06-25
 - **Deciders:** cgk
 - **Supersedes:** —
-- **Superseded by:** —
+- **Superseded by:** the fixed `MAX_MEDIA = 3` is now trust-dependent per
+  [ADR-0005](0005-graduated-upload-limits-by-trust.md) (the rest of this ADR
+  stands). `MAX_MEDIA = 3` remains the tier-1 default.
 
 ## Context
 

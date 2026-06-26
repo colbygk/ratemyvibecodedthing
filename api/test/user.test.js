@@ -6,7 +6,7 @@ describe("DEFAULT_TRUST", () => {
 });
 
 describe("newUserFields", () => {
-  it("produces a flat HSET field list including trust=1 by default", () => {
+  it("produces a flat HSET field list including trust=1 and role=user by default", () => {
     const flat = newUserFields({ username: "Nova", pwhash: "ph", salt: "sa", now: 1700 });
     // even-length [field, value, …]
     expect(flat.length % 2).toBe(0);
@@ -18,7 +18,14 @@ describe("newUserFields", () => {
       created: "1700",
       username: "Nova",
       trust: "1",
+      role: "user",
     });
+  });
+
+  it("records an explicit role (e.g. the first user is super_admin)", () => {
+    const flat = newUserFields({ username: "cgk", pwhash: "p", salt: "s", now: 1, role: "super_admin" });
+    const i = flat.indexOf("role");
+    expect(flat[i + 1]).toBe("super_admin");
   });
 
   it("stores every value as a string (Redis HSET wants strings)", () => {
@@ -34,13 +41,19 @@ describe("newUserFields", () => {
 });
 
 describe("publicUserShape", () => {
-  it("defaults following/followers to [] and trust to 1", () => {
+  it("defaults following/followers to [], trust to 1, role to user", () => {
     expect(publicUserShape({ username: "Nova" })).toEqual({
       username: "Nova",
       following: [],
       followers: [],
       trust: 1,
+      role: "user",
     });
+  });
+
+  it("passes through an effective role", () => {
+    expect(publicUserShape({ username: "cgk", role: "super_admin" }).role).toBe("super_admin");
+    expect(publicUserShape({ username: "x", role: "bogus" }).role).toBe("user");
   });
 
   it("coerces a string trust (as Redis returns it) to a number", () => {

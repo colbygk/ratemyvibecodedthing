@@ -285,7 +285,19 @@ img, video { max-width: 100%; display: block; }
 .notes-title { font-family: var(--font-mono); font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--paper-ink-soft); margin: 0 0 0.6rem; }
 .note-item { display: flex; gap: 0.55rem; padding: 0.3rem 0; font-size: 0.82rem; line-height: 1.4; }
 .note-who { font-family: var(--font-mono); font-size: 0.7rem; color: var(--accent-dim); flex: none; }
-.note-text { color: var(--paper-ink); overflow-wrap: anywhere; }
+.note-text { color: var(--paper-ink); overflow-wrap: anywhere; flex: 1; }
+.note-remove { flex: none; background: none; border: none; cursor: pointer; color: var(--paper-ink-soft); font-size: 0.8rem; line-height: 1; padding: 0 0.2rem; opacity: 0.5; }
+.note-remove:hover { opacity: 1; color: #c0533b; }
+
+/* Moderation toolbar + role badges (ADR-0006). */
+.mod-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin: 0.1rem 0 0.9rem; padding: 0.45rem 0.6rem; border: 1px dashed var(--paper-shadow); border-radius: var(--radius-sm); }
+.mod-tag { font-family: var(--font-mono); font-size: 0.56rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--paper); background: var(--accent-dim); padding: 0.1rem 0.4rem; border-radius: 999px; }
+.mod-bar .link-btn { font-family: var(--font-mono); font-size: 0.72rem; cursor: pointer; }
+.mod-admin { display: inline-flex; align-items: center; gap: 0.7rem; font-family: var(--font-mono); font-size: 0.66rem; color: var(--paper-ink-soft); }
+.mod-admin label { display: inline-flex; align-items: center; gap: 0.3rem; }
+.mod-admin select, .mod-admin input { font-family: var(--font-mono); font-size: 0.7rem; }
+.role-badge { font-family: var(--font-mono); font-size: 0.54rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); border: 1px solid var(--accent-dim); border-radius: 999px; padding: 0.05rem 0.4rem; vertical-align: middle; }
+.hidden-badge { font-family: var(--font-mono); font-size: 0.55rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--paper); background: #c0533b; border-radius: 999px; padding: 0.1rem 0.45rem; vertical-align: middle; }
 
 /* follow control on the (paper) left page */
 .follow-row { display: flex; align-items: center; gap: 0.6rem; margin: 0.1rem 0 0.9rem; }

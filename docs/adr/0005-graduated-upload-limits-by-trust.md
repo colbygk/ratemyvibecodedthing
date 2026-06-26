@@ -1,14 +1,16 @@
 # ADR-0005: Graduated upload limits by trust
 
-- **Status:** Proposed
-- **Date:** 2026-06-25
+- **Status:** Accepted
+- **Date:** 2026-06-25 (accepted 2026-06-26)
 - **Deciders:** cgk
-- **Supersedes:** —
+- **Supersedes:** the fixed `MAX_MEDIA = 3` of [ADR-0002](0002-media-capture-and-presentation.md)
 - **Superseded by:** —
 
-> **Proposed** — not implemented. This depends on the trust attribute from
-> [ADR-0004](0004-per-user-trust-score.md) and on a (still undefined) mechanism
-> for trust to actually change. Implement only once accepted.
+> **Accepted & implemented.** Builds on the trust attribute from
+> [ADR-0004](0004-per-user-trust-score.md). The manual trust-set endpoint from
+> [ADR-0006](0006-role-based-access-control-via-jwt.md) is the interim mechanism
+> by which trust changes (a super_admin sets it) until an automated progression
+> model exists. See **Implementation** below for the as-built decisions.
 
 ## Context
 
@@ -49,6 +51,22 @@ This stays inert until **trust can actually move** (a separate decision). With
 every account pinned at `trust = 1`, accepting this ADR alone would simply lower
 everyone to the 10 MB tier — so it should land *together with* a trust-progression
 mechanism, or with the tier-1 size raised to today's 25 MB to avoid a regression.
+
+## Implementation (as-built)
+
+- **Tier 1 stays at today's 25 MB / 3** (not the originally-floated 10 MB) so
+  introducing trust never *lowers* anyone's limit — with every account at
+  `trust = 1`, nobody regresses; trust only ever grants *more*. Ladder:
+  `trust 1 → 25 MB/3`, `2–4 → 35 MB/3`, `5–9 → 50 MB/4`, `≥10 → 90 MB/5`.
+- Pure `uploadLimitsFor(trust, env)` in `api/src/lib/upload-limits.js`; the media
+  endpoint reads the uploader's trust and applies `{maxBytes, maxMedia}`.
+  `reserveStorage(...)` gained a per-file override arg. Client mirror in
+  `web/src/lib/limits.js` sizes the picker (server stays authoritative).
+- `MAX_UPLOAD_BYTES` env only ever *lowers* the ceiling (ops kill-switch); every
+  tier stays < 100 MB.
+- **Trust-change mechanism:** a super_admin sets a user's trust via
+  `POST /users/:name/trust` (ADR-0006). Automated/behavioral progression remains
+  future work.
 
 ## Consequences
 

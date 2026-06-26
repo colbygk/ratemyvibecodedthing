@@ -70,9 +70,10 @@ export async function consume(redis, env, resource, nowMs, amount = 1) {
  * cumulative total-storage cap, rolling back the reservation if the total would
  * be exceeded. Throws a graceful error otherwise.
  */
-export async function reserveStorage(redis, env, bytes, nowMs) {
+export async function reserveStorage(redis, env, bytes, nowMs, perFileMax) {
   if (!Number.isFinite(bytes) || bytes <= 0) throw httpError("Upload requires a Content-Length header", 411);
-  const perFile = maxUpload(env);
+  // perFileMax (trust-derived, ADR-0005) overrides the flat default when given.
+  const perFile = Number.isFinite(perFileMax) && perFileMax > 0 ? perFileMax : maxUpload(env);
   if (bytes > perFile) throw httpError(`File too large (max ${Math.floor(perFile / 1048576)} MB).`, 413);
 
   const cap = maxStorage(env);

@@ -6,8 +6,8 @@
  *   - Cloudflare R2 (binding: MEDIA) for user-uploaded images/video
  *
  * Redis key map:
- *   user:<username>           HASH  { pwhash, salt, created, username, trust }
- *   project:<id>              HASH  { title, author, description, links(JSON), media(JSON), up, down, created }
+ *   user:<username>           HASH  { pwhash, salt, created, username, trust, role }
+ *   project:<id>              HASH  { title, author, description, links(JSON), media(JSON), up, down, created, hidden }
  *   projects:byScore          ZSET  member=<id> score=(up-down)   -> shelf ordering
  *   projects:byNew            ZSET  member=<id> score=created
  *   user:<username>:projects  SET   project ids
@@ -20,9 +20,11 @@
 import { hashPassword, signJWT, verifyJWT, randomHex, timingSafeEqual } from "./lib/crypto.js";
 import { json, cors, httpError, clientIP, safeJSON, validateCreds, hashArrayToObject, allowedOrigin } from "./lib/util.js";
 import { consume, reserveStorage, usageToday } from "./lib/quota.js";
-import { sanitizeProjectEdits, editsToHSET, MAX_MEDIA, assertMediaCapacity } from "./lib/project.js";
+import { sanitizeProjectEdits, editsToHSET, assertMediaCapacity } from "./lib/project.js";
 import { newUserFields, publicUserShape } from "./lib/user.js";
 import { notesObjectToList } from "./lib/notes.js";
+import { uploadLimitsFor } from "./lib/upload-limits.js";
+import { normalizeRole, can, effectiveRole, accountKeysOnly, firstUserRole } from "./lib/roles.js";
 
 export default {
   async fetch(request, env, ctx) {
@@ -65,8 +67,10 @@ async function route(request, env, ctx) {
   if (seg[0] === "projects" && seg[1] && !seg[2] && m === "GET") return getProject(seg[1], env);
   if (seg[0] === "projects" && seg[1] && !seg[2] && m === "PATCH") return editProject(seg[1], request, env);
   if (seg[0] === "projects" && seg[1] && seg[2] === "vote" && m === "POST") return vote(seg[1], request, env);
-  if (seg[0] === "projects" && seg[1] && seg[2] === "notes" && m === "GET") return listNotes(seg[1], env);
+  if (seg[0] === "projects" && seg[1] && seg[2] === "notes" && !seg[3] && m === "GET") return listNotes(seg[1], env);
+  if (seg[0] === "projects" && seg[1] && seg[2] === "notes" && seg[3] && m === "DELETE") return removeNote(seg[1], seg[3], request, env);
   if (seg[0] === "projects" && seg[1] && seg[2] === "media" && m === "POST") return uploadMedia(seg[1], request, env);
+  if (seg[0] === "projects" && seg[1] && seg[2] === "hide" && m === "POST") return hideProject(seg[1], request, env);
 
   // ---- media serving ----
   if (seg[0] === "media" && seg[1] && m === "GET") return serveMedia(seg.slice(1).join("/"), env);
@@ -78,6 +82,11 @@ async function route(request, env, ctx) {
   if (seg[0] === "users" && seg[1] && seg[2] === "follow" && m === "POST") return follow(seg[1], request, env);
   if (seg[0] === "users" && seg[1] && seg[2] === "follow" && m === "DELETE") return unfollow(seg[1], request, env);
   if (seg[0] === "users" && seg[1] && seg[2] === "graph" && m === "GET") return graph(seg[1], env);
+
+  // ---- moderation / admin (RBAC via JWT claims — ADR-0006) ----
+  if (seg[0] === "users" && seg[1] && seg[2] === "admin" && m === "GET") return getUserAdmin(seg[1], request, env);
+  if (seg[0] === "users" && seg[1] && seg[2] === "role" && m === "POST") return setUserRole(seg[1], request, env);
+  if (seg[0] === "users" && seg[1] && seg[2] === "trust" && m === "POST") return setUserTrust(seg[1], request, env);
 
   return json({ error: "Not found" }, 404);
 }
@@ -92,21 +101,26 @@ async function signup(request, env) {
 
   const salt = randomHex(16);
   const pwhash = await hashPassword(password, salt);
+  // The first-ever account becomes super_admin (ADR-0006); on a populated DB the
+  // count is > 0 so this can never be mis-claimed by a later signup.
+  const storedRole = firstUserRole(await countAccounts(env));
   // Every account starts at trust = 1 (ADR-0004); field list lives in lib/user.js.
-  await redis(env, ["HSET", key, ...newUserFields({ username, pwhash, salt, now: Date.now() })]);
-  const token = await signJWT({ sub: username }, env.JWT_SECRET);
-  return json({ token, user: publicUserShape({ username }) }, 201);
+  await redis(env, ["HSET", key, ...newUserFields({ username, pwhash, salt, now: Date.now(), role: storedRole })]);
+  const role = effectiveRole(storedRole, username, env.SUPERADMINS);
+  const token = await signJWT({ sub: username, role }, env.JWT_SECRET);
+  return json({ token, user: publicUserShape({ username, role }) }, 201);
 }
 
 async function login(request, env) {
   const { username, password } = await request.json();
   validateCreds(username, password);
   const key = `user:${username.toLowerCase()}`;
-  const [pwhash, salt] = await redis(env, ["HMGET", key, "pwhash", "salt"]);
+  const [pwhash, salt, storedRole] = await redis(env, ["HMGET", key, "pwhash", "salt", "role"]);
   if (!pwhash || !salt) throw httpError("Invalid credentials", 401);
   const check = await hashPassword(password, salt);
   if (!timingSafeEqual(check, pwhash)) throw httpError("Invalid credentials", 401);
-  const token = await signJWT({ sub: username }, env.JWT_SECRET);
+  const role = effectiveRole(storedRole, username, env.SUPERADMINS);
+  const token = await signJWT({ sub: username, role }, env.JWT_SECRET);
   return json({ token, user: await publicUser(username, env) });
 }
 
@@ -116,21 +130,36 @@ async function me(request, env) {
 }
 
 async function publicUser(username, env) {
-  const [following, followers, trust] = await Promise.all([
+  const [following, followers, trust, storedRole] = await Promise.all([
     redis(env, ["SMEMBERS", `following:${username.toLowerCase()}`]),
     redis(env, ["SMEMBERS", `followers:${username.toLowerCase()}`]),
     redis(env, ["HGET", `user:${username.toLowerCase()}`, "trust"]),
+    redis(env, ["HGET", `user:${username.toLowerCase()}`, "role"]),
   ]);
-  return publicUserShape({ username, following, followers, trust });
+  const role = effectiveRole(storedRole, username, env.SUPERADMINS);
+  return publicUserShape({ username, following, followers, trust, role });
+}
+
+// Count real accounts (user:<name>) via SCAN — used once at signup to decide if
+// this is the first-ever account. No per-request cost on the hot paths.
+async function countAccounts(env) {
+  let cursor = "0";
+  let count = 0;
+  do {
+    const [next, keys] = await redis(env, ["SCAN", cursor, "MATCH", "user:*", "COUNT", "200"]);
+    count += accountKeysOnly(keys).length;
+    cursor = next;
+  } while (cursor !== "0");
+  return count;
 }
 
 /* ============================ Projects ============================ */
 async function listProjects(env) {
-  // top of the shelf first, by net score
+  // top of the shelf first, by net score; moderator-hidden projects are off-shelf
   const ids = (await redis(env, ["ZRANGE", "projects:byScore", "0", "199", "REV"])) || [];
   if (!ids.length) return json([]);
   const projects = await Promise.all(ids.map((id) => readProject(id, env)));
-  return json(projects.filter(Boolean));
+  return json(projects.filter((p) => p && !p.hidden));
 }
 
 async function getProject(id, env) {
@@ -154,6 +183,7 @@ async function readProject(id, env) {
     coverColor: h.coverColor || null,
     coverSeed: h.coverSeed || h.title,
     created: Number(h.created || 0),
+    hidden: h.hidden === "1",
   };
 }
 
@@ -276,6 +306,82 @@ async function graph(username, env) {
   return json({ username, followers: Number(followers || 0), following: Number(following || 0) });
 }
 
+/* ============================ Moderation / admin (ADR-0006) ============================ */
+// Authorization for routine moderation trusts the signed role claim (no DB read).
+// For revocation-sensitive actions (role/trust changes) we re-read the actor's
+// CURRENT role from the DB so a just-revoked admin can't act on a stale token.
+async function requireCapability(request, env, action) {
+  const actor = await requireActor(request, env);
+  if (!can(actor.role, action)) throw httpError("Insufficient permissions", 403);
+  return actor;
+}
+async function requireLiveCapability(request, env, action) {
+  const actor = await requireActor(request, env);
+  const stored = await redis(env, ["HGET", `user:${actor.username.toLowerCase()}`, "role"]);
+  const liveRole = effectiveRole(stored, actor.username, env.SUPERADMINS);
+  if (!can(liveRole, action)) throw httpError("Insufficient permissions", 403);
+  return { ...actor, role: liveRole };
+}
+
+// Hide/unhide any project (moderator+). Hidden projects drop off the shelf but
+// remain in storage (reversible) — see ADR-0006 (soft-hide over hard delete).
+async function hideProject(id, request, env) {
+  await requireCapability(request, env, "project:hide");
+  const exists = await redis(env, ["HEXISTS", `project:${id}`, "title"]);
+  if (!exists) throw httpError("Not found", 404);
+  const { hidden } = await request.json();
+  await redis(env, ["HSET", `project:${id}`, "hidden", hidden ? "1" : "0"]);
+  return json(await readProject(id, env));
+}
+
+// Remove a single note from a project (moderator+).
+async function removeNote(id, username, request, env) {
+  await requireCapability(request, env, "note:remove");
+  await redis(env, ["HDEL", `notes:${id}`, username]);
+  return json({ ok: true });
+}
+
+// Read a user's moderation attributes — role + trust (moderator+), so the UI can
+// show current values before changing them.
+async function getUserAdmin(target, request, env) {
+  await requireCapability(request, env, "project:hide"); // any moderator may view
+  const key = `user:${target.toLowerCase()}`;
+  const [exists, storedRole, trust] = await redis(env, ["HMGET", key, "pwhash", "role", "trust"]);
+  if (!exists) throw httpError("No such user", 404);
+  return json({
+    username: target,
+    role: effectiveRole(storedRole, target, env.SUPERADMINS),
+    trust: Number(trust || 1),
+  });
+}
+
+// Grant/revoke a role (super_admin only; live-checked).
+async function setUserRole(target, request, env) {
+  await requireLiveCapability(request, env, "role:set");
+  const key = `user:${target.toLowerCase()}`;
+  const exists = await redis(env, ["HEXISTS", key, "pwhash"]);
+  if (!exists) throw httpError("No such user", 404);
+  const { role } = await request.json();
+  const norm = normalizeRole(role);
+  await redis(env, ["HSET", key, "role", norm]);
+  return json({ username: target, role: effectiveRole(norm, target, env.SUPERADMINS) });
+}
+
+// Adjust a user's trust score (super_admin only; live-checked). This is the
+// manual mechanism that makes the graduated upload tiers (ADR-0005) usable until
+// an automated trust-progression model exists.
+async function setUserTrust(target, request, env) {
+  await requireLiveCapability(request, env, "trust:set");
+  const key = `user:${target.toLowerCase()}`;
+  const exists = await redis(env, ["HEXISTS", key, "pwhash"]);
+  if (!exists) throw httpError("No such user", 404);
+  const { trust } = await request.json();
+  const n = Math.max(0, Math.min(100, Math.floor(Number(trust))));
+  if (!Number.isFinite(n)) throw httpError("trust must be a number", 400);
+  await redis(env, ["HSET", key, "trust", String(n)]);
+  return json({ username: target, trust: n });
+}
+
 /* ============================ Media (R2) ============================ */
 async function uploadMedia(id, request, env) {
   if (!env.MEDIA) throw httpError("Media storage not enabled yet", 503);
@@ -287,16 +393,21 @@ async function uploadMedia(id, request, env) {
   const type = request.headers.get("content-type") || "application/octet-stream";
   if (!/^image\/|^video\//.test(type)) throw httpError("Only image/video uploads allowed", 415);
 
-  // Up to MAX_MEDIA items per project (ADR-0002). Check BEFORE the R2 write so a
-  // rejected upload never orphans an object in the bucket.
-  const media = safeJSON(await redis(env, ["HGET", `project:${id}`, "media"]), []);
-  assertMediaCapacity(media.length);
+  // Trust-graduated limits (ADR-0005): the uploader's trust sets per-file size and
+  // per-project media count. Tier 1 == today's 25 MB / 3, so no one regresses.
+  const trust = await redis(env, ["HGET", `user:${username.toLowerCase()}`, "trust"]);
+  const limits = uploadLimitsFor(trust, env);
 
-  // Cost guard: enforce per-file + total storage caps and the daily upload-op
-  // limit BEFORE writing to R2 (R2 has no provider-side auto-stop).
+  // Count cap — check BEFORE the R2 write so a rejected upload never orphans an
+  // object in the bucket.
+  const media = safeJSON(await redis(env, ["HGET", `project:${id}`, "media"]), []);
+  assertMediaCapacity(media.length, limits.maxMedia);
+
+  // Cost guard: enforce per-file (trust-derived) + total storage caps and the
+  // daily upload-op limit BEFORE writing to R2 (R2 has no provider-side auto-stop).
   const r1 = (cmd) => redis(env, cmd);
   const bytes = Number(request.headers.get("content-length") || 0);
-  await reserveStorage(r1, env, bytes, Date.now());
+  await reserveStorage(r1, env, bytes, Date.now(), limits.maxBytes);
   await consume(r1, env, "r2_upload", Date.now());
 
   const ext = type.split("/")[1]?.split(";")[0] || "bin";
@@ -305,7 +416,7 @@ async function uploadMedia(id, request, env) {
 
   const kind = type.startsWith("video/") ? "video" : "image";
   media.push({ type: kind, url: `/media/${objectKey}` });
-  await redis(env, ["HSET", `project:${id}`, "media", JSON.stringify(media.slice(0, MAX_MEDIA))]);
+  await redis(env, ["HSET", `project:${id}`, "media", JSON.stringify(media.slice(0, limits.maxMedia))]);
   return json({ media });
 }
 
@@ -347,11 +458,24 @@ async function requireUser(request, env) {
 }
 
 async function optionalUser(request, env) {
+  return (await actorFromRequest(request, env))?.username || null;
+}
+
+// Resolve the caller from the Bearer token to { username, role }. The role comes
+// from the signed JWT claim (ADR-0006) — no DB read on this hot path.
+async function actorFromRequest(request, env) {
   const auth = request.headers.get("Authorization") || "";
   const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
   if (!token) return null;
   const payload = await verifyJWT(token, env.JWT_SECRET).catch(() => null);
-  return payload?.sub || null;
+  if (!payload?.sub) return null;
+  return { username: payload.sub, role: normalizeRole(payload.role) };
+}
+
+async function requireActor(request, env) {
+  const a = await actorFromRequest(request, env);
+  if (!a) throw httpError("Authentication required", 401);
+  return a;
 }
 
 /* validateCreds + crypto + HTTP/data utils live in ./lib/crypto.js and ./lib/util.js (imported above). */

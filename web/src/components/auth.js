@@ -1,6 +1,9 @@
 // Auth + submit modals, and the header session UI.
-import { api, MAX_MEDIA } from "../lib/api.js";
+import { api } from "../lib/api.js";
+import { maxMediaFor } from "../lib/limits.js";
 import { toast } from "../lib/toast.js";
+
+const ROLE_LABEL = { moderator: "moderator", super_admin: "super admin" };
 
 export function renderHeader(nav, session, handlers) {
   nav.innerHTML = "";
@@ -10,7 +13,8 @@ export function renderHeader(nav, session, handlers) {
     hi.style.borderColor = "transparent";
     const fg = (session.following || []).length;
     const fr = (session.followers || []).length;
-    hi.innerHTML = `@${session.username} <span class="follow-stats">${fg} following · ${fr} followers</span>`;
+    const roleBadge = ROLE_LABEL[session.role] ? ` <span class="role-badge">${ROLE_LABEL[session.role]}</span>` : "";
+    hi.innerHTML = `@${session.username}${roleBadge} <span class="follow-stats">${fg} following · ${fr} followers</span>`;
 
     const submit = mkBtn("+ submit", "btn btn--accent", handlers.onCreate);
     const out = mkBtn("log out", "btn", () => { api.logout(); handlers.onSession(null); toast("Logged out"); });
@@ -79,10 +83,11 @@ export function openAuth(overlay, mode, onSession) {
 }
 
 // Create (project=null) or edit (project provided) a project. Same form, both modes.
-export function openProjectForm(overlay, { project = null, onSaved } = {}) {
+export function openProjectForm(overlay, { project = null, session = null, onSaved } = {}) {
   const editing = !!project;
   const link = editing ? (project.links?.[0]?.url || "") : "";
   const color = (editing && project.coverColor) || "#3a4a44";
+  const maxMedia = maxMediaFor(session?.trust); // trust-graduated cap (ADR-0005)
   overlay.innerHTML = `
     <div class="modal" role="document">
       <h2>${editing ? "Edit your thing" : "Shelve a new thing"}</h2>
@@ -105,7 +110,7 @@ export function openProjectForm(overlay, { project = null, onSaved } = {}) {
           <input id="c" name="coverColor" type="color" value="${attr(color)}" style="height:42px;padding:4px" />
         </div>
         ${editing ? "" : `<div class="field">
-          <label for="m">Images / video <span class="hint">up to ${MAX_MEDIA}</span></label>
+          <label for="m">Images / video <span class="hint">up to ${maxMedia}</span></label>
           <input id="m" name="media" type="file" accept="image/*,video/*" multiple />
         </div>`}
         <button class="btn btn--accent" type="submit">${editing ? "Save changes" : "Shelve it"}</button>
@@ -128,7 +133,7 @@ export function openProjectForm(overlay, { project = null, onSaved } = {}) {
       coverColor: fd.get("coverColor"),
       links: url ? [{ label: "live demo", url }] : [],
     };
-    const files = editing ? [] : [...(overlay.querySelector("#m")?.files || [])].slice(0, MAX_MEDIA);
+    const files = editing ? [] : [...(overlay.querySelector("#m")?.files || [])].slice(0, maxMedia);
     try {
       const saved = editing ? await api.updateProject(project.id, data) : await api.createProject(data);
       // Attach media after creation (ADR-0002): reuse the per-file media endpoint,

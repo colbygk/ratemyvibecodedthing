@@ -30,11 +30,12 @@ function paintShelves() {
     onOpen: (id) => openBook(els.book, id, {
       session: state.session,
       onAuthNeeded: () => openAuth(els.modal, "signup", setSession),
-      onEdit: (project) => openProjectForm(els.modal, { project, onSaved: onUpdated }),
+      onEdit: (project) => openProjectForm(els.modal, { project, session: state.session, onSaved: onUpdated }),
       onVoted,
       onFollow: (session) => { state.session = session; paintHeader(); },
+      onModerated: reloadProjects,
     }),
-    onCreate: () => openProjectForm(els.modal, { onSaved: onCreated }),
+    onCreate: () => openProjectForm(els.modal, { session: state.session, onSaved: onCreated }),
   });
 }
 
@@ -42,8 +43,17 @@ function paintHeader() {
   renderHeader(els.nav, state.session, {
     modal: els.modal,
     onSession: setSession,
-    onCreate: () => openProjectForm(els.modal, { onSaved: onCreated }),
+    onCreate: () => openProjectForm(els.modal, { session: state.session, onSaved: onCreated }),
   });
+}
+
+// Re-fetch the shelf from the server (e.g. after a moderator hides a project, so
+// it drops off — or unhides one elsewhere).
+async function reloadProjects() {
+  try {
+    state.projects = await api.listProjects();
+    paintShelves();
+  } catch (err) { toast(err.message || "Couldn't refresh the shelves"); }
 }
 
 function setSession(user) {

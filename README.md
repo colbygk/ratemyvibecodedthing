@@ -34,8 +34,8 @@ docs/adr/            Architecture Decision Records (see docs/adr/README.md)
 Significant design decisions are recorded as **ADRs** under
 [`docs/adr/`](docs/adr/README.md) (Proposed → Accepted → Deprecated). Current set
 covers media capture & presentation, surfacing project notes, the per-user trust
-score, and two proposals up for review: graduated upload limits by trust, and
-role-based access control carried in the JWT.
+score, graduated upload limits by trust, and role-based access control carried in
+the JWT (first user = super admin; moderators can hide projects and remove notes).
 
 ## Architecture
 
@@ -145,6 +145,13 @@ GET    /me/projects            (Bearer) your submissions
 POST   /users/:name/follow     (Bearer)        SADD following/followers
 DELETE /users/:name/follow     (Bearer)        SREM following/followers
 GET    /users/:name/graph      → {followers, following} counts
+
+# moderation / admin (RBAC via JWT role claim — ADR-0006)
+POST   /projects/:id/hide        {hidden}            (moderator+)  soft-hide off the shelf
+DELETE /projects/:id/notes/:user                     (moderator+)  remove a note
+GET    /users/:name/admin        → {role, trust}     (moderator+)
+POST   /users/:name/role         {role}              (super_admin) grant/revoke role
+POST   /users/:name/trust        {trust}             (super_admin) set trust (ADR-0005)
 ```
 
 ## Status / next steps

@@ -97,4 +97,43 @@ describe("api (mock mode)", () => {
     await api.vote(target.id, "up", "anon note");
     expect((await api.notes(target.id)).notes).toEqual([]);
   });
+
+  // RBAC (ADR-0006) + trust (ADR-0004) on the session
+  it("makes the first account a super_admin with trust 1", async () => {
+    const user = await api.signup("cgk", "secret");
+    expect(user.role).toBe("super_admin");
+    expect(user.trust).toBe(1);
+  });
+
+  it("makes subsequent accounts plain users", async () => {
+    await api.signup("cgk", "secret");
+    api.logout();
+    const second = await api.signup("nova", "secret");
+    expect(second.role).toBe("user");
+  });
+
+  it("hides a project so it drops off the shelf, and can unhide it", async () => {
+    await api.signup("cgk", "secret"); // super_admin
+    const [target] = await api.listProjects();
+    await api.hideProject(target.id, true);
+    expect((await api.listProjects()).some((p) => p.id === target.id)).toBe(false);
+    await api.hideProject(target.id, false);
+    expect((await api.listProjects()).some((p) => p.id === target.id)).toBe(true);
+  });
+
+  it("removes a note", async () => {
+    await api.signup("cgk", "secret");
+    const [target] = await api.listProjects();
+    await api.vote(target.id, "up", "to be removed");
+    expect((await api.notes(target.id)).notes).toHaveLength(1);
+    await api.removeNote(target.id, "cgk");
+    expect((await api.notes(target.id)).notes).toHaveLength(0);
+  });
+
+  it("sets a user's role and trust", async () => {
+    await api.signup("cgk", "secret");
+    expect((await api.setRole("nova", "moderator")).role).toBe("moderator");
+    expect((await api.setTrust("nova", 7)).trust).toBe(7);
+    expect(await api.userAdmin("nova")).toMatchObject({ role: "moderator", trust: 7 });
+  });
 });

@@ -38,11 +38,14 @@ const mockStore = structuredClone(MOCK_PROJECTS);
 let mockSession = null;
 const mockVoted = new Set();
 const mockNotes = {}; // id -> { username: note }
+const mockRoles = {}; // username -> role
+const mockTrust = {}; // username -> trust
+let mockUserCount = 0; // first signup becomes super_admin (mirrors the server)
 
 export const api = {
   /* --- projects --- */
   async listProjects() {
-    if (MOCK_MODE) return structuredClone(mockStore);
+    if (MOCK_MODE) return structuredClone(mockStore.filter((p) => !p.hidden));
     return req("/projects");
   },
   async getProject(id) {
@@ -110,15 +113,45 @@ export const api = {
     return req(`/projects/${id}/notes`);
   },
 
+  /* --- moderation / admin (RBAC — ADR-0006) --- */
+  async hideProject(id, hidden) {
+    if (MOCK_MODE) { const p = mockStore.find((x) => x.id === id); if (p) p.hidden = !!hidden; return structuredClone(p); }
+    return req(`/projects/${id}/hide`, { method: "POST", body: { hidden }, auth: true });
+  },
+  async removeNote(id, username) {
+    if (MOCK_MODE) { if (mockNotes[id]) delete mockNotes[id][username]; return { ok: true }; }
+    return req(`/projects/${id}/notes/${encodeURIComponent(username)}`, { method: "DELETE", auth: true });
+  },
+  async userAdmin(username) {
+    if (MOCK_MODE) return { username, role: mockRoles[username] || "user", trust: mockTrust[username] || 1 };
+    return req(`/users/${encodeURIComponent(username)}/admin`, { auth: true });
+  },
+  async setRole(username, role) {
+    if (MOCK_MODE) { mockRoles[username] = role; if (mockSession?.username === username) mockSession.role = role; return { username, role }; }
+    return req(`/users/${encodeURIComponent(username)}/role`, { method: "POST", body: { role }, auth: true });
+  },
+  async setTrust(username, trust) {
+    if (MOCK_MODE) { mockTrust[username] = trust; if (mockSession?.username === username) mockSession.trust = trust; return { username, trust }; }
+    return req(`/users/${encodeURIComponent(username)}/trust`, { method: "POST", body: { trust }, auth: true });
+  },
+
   /* --- auth --- */
   async signup(username, password) {
-    if (MOCK_MODE) { mockSession = { username, following: [], followers: [] }; return mockSession; }
+    if (MOCK_MODE) {
+      const role = ++mockUserCount === 1 ? "super_admin" : (mockRoles[username] || "user");
+      mockRoles[username] = role;
+      mockSession = { username, following: [], followers: [], trust: mockTrust[username] || 1, role };
+      return mockSession;
+    }
     const s = await req("/auth/signup", { method: "POST", body: { username, password } });
     if (s.token) setToken(s.token);
     return s.user || s;
   },
   async login(username, password) {
-    if (MOCK_MODE) { mockSession = { username, following: [], followers: [] }; return mockSession; }
+    if (MOCK_MODE) {
+      mockSession = { username, following: [], followers: [], trust: mockTrust[username] || 1, role: mockRoles[username] || "user" };
+      return mockSession;
+    }
     const s = await req("/auth/login", { method: "POST", body: { username, password } });
     if (s.token) setToken(s.token);
     return s.user || s;

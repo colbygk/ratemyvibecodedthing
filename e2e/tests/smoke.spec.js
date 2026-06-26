@@ -82,6 +82,38 @@ test("media attached at creation appears in the book", async ({ page }) => {
   await expect.poll(() => img.evaluate((n) => n.complete && n.naturalWidth > 0)).toBe(true);
 });
 
+// ADR-0006: a moderator (here a super_admin via the SUPERADMINS allowlist) can
+// hide a project off the shelf and remove a note. Username `e2eadmin` matches the
+// allowlist wired into the Docker API, so this is order-independent.
+test("a super_admin can hide a project and remove a note", async ({ page }) => {
+  // sign up the allow-listed admin (idempotent fresh DB per run)
+  await page.goto("/");
+  await page.getByRole("button", { name: /create account/i }).click();
+  await page.locator("#u").fill("e2eadmin");
+  await page.locator("#p").fill("secret123");
+  await page.getByRole("button", { name: /^Create account$/ }).click();
+  await expect(page.locator("#header-actions")).toContainText("@e2eadmin");
+  await expect(page.locator("#header-actions .role-badge")).toContainText(/super admin/i);
+
+  const title = `E2E Mod ${uniq()}`;
+  const spine = await createProject(page, title);
+  await spine.click();
+
+  // leave a note, then remove it as a moderator
+  const note = `note to remove ${uniq()}`;
+  await page.locator("#book-overlay #note").fill(note);
+  await page.locator('#book-overlay .vote-btn[data-dir="up"]').click();
+  await expect(page.locator("#book-overlay .notes")).toContainText(note);
+  await page.locator("#book-overlay .note-remove").first().click();
+  await expect(page.locator("#book-overlay .notes")).not.toContainText(note);
+
+  // hide the project — it should drop off the shelf
+  await page.locator("#book-overlay [data-hide-toggle]").click();
+  await expect(page.locator("#book-overlay [data-hidden-badge]")).toBeVisible();
+  await page.locator("#book-overlay .book-close").click();
+  await expect(page.getByRole("button", { name: new RegExp(`Open .*${esc(title)}`) })).toHaveCount(0);
+});
+
 // ADR-0003: a note left with a vote is persisted AND rendered back in the book.
 test("a note left with a vote is surfaced in the book", async ({ page }) => {
   const user = await signup(page);

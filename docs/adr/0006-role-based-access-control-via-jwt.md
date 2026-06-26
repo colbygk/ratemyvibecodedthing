@@ -1,14 +1,15 @@
 # ADR-0006: Role-based access control via JWT claims
 
-- **Status:** Proposed
-- **Date:** 2026-06-25
+- **Status:** Accepted
+- **Date:** 2026-06-25 (accepted 2026-06-26)
 - **Deciders:** cgk
 - **Supersedes:** —
 - **Superseded by:** —
 
-> **Proposed** — not implemented. Scaffolding (a `role` field + JWT claim) is
-> low-risk; the moderation *capabilities* it gates do not exist yet. Implement on
-> acceptance.
+> **Accepted & implemented.** Roles ride in the JWT; moderation endpoints + a
+> moderator UI ship with this. See **Implementation** below for the as-built
+> decisions (notably: first-user detection via SCAN rather than a counter, and
+> soft-hide rather than hard-delete).
 
 ## Context
 
@@ -59,6 +60,32 @@ should automatically be super admin.
 **Enforcement.** A pure capability map `can(role, action)` guards the (new)
 moderation endpoints. Those endpoints — and the moderation UI — are part of this
 ADR's implementation, to be built on acceptance.
+
+## Implementation (as-built)
+
+Differs from the original proposal in two safety-driven ways:
+
+- **First-user detection via SCAN, not a counter+seed.** At signup we SCAN for any
+  existing `user:<name>` account (`countAccounts`); super_admin is granted only
+  when the count is 0. This is correct on the *already-populated* production DB
+  with no migration/seed step and no risk of a later signup mis-claiming it. The
+  `meta:user_count` counter idea was dropped.
+- **`cgk` bootstrap via `SUPERADMINS` env** (a `wrangler.toml` var, set to `cgk`).
+  `effectiveRole(stored, username, env.SUPERADMINS)` elevates allow-listed
+  usernames at token-issue time. cgk gets super_admin on next login after deploy.
+- **Soft-hide, not hard-delete**, for projects (`POST /projects/:id/hide`): hidden
+  projects leave the shelf but stay in storage (reversible, no data loss) — in
+  keeping with the project's data-safety stance.
+- Pure helpers in `api/src/lib/roles.js` (`can`, `effectiveRole`, `roleAtLeast`,
+  `firstUserRole`, …), unit-tested. Role rides in the JWT (`actorFromRequest`).
+- Endpoints shipped: hide/unhide project, remove note (moderator+); set role, set
+  trust, read a user's admin info (super_admin, **live**-rechecked for the two
+  revocation-sensitive setters). UI: a moderator toolbar in the book overlay
+  (hide toggle + per-note remove) and, for super_admins, in-context role/trust
+  controls on the author — avoiding a separate user-management view.
+- **Deferred to a follow-up:** soft-ban of a user account (touches login + every
+  request), and audit-logging of moderation actions. Recorded here so the gap is
+  explicit.
 
 ## Consequences
 

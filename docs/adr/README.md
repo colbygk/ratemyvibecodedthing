@@ -41,5 +41,5 @@ Numbers are zero-padded, monotonic, and never reused.
 | [0002](0002-media-capture-and-presentation.md) | Media: capture at creation, up to 3, larger presentation | Accepted |
 | [0003](0003-surface-project-notes.md) | Surface project notes (add a read path) | Accepted |
 | [0004](0004-per-user-trust-score.md) | Per-user trust score | Accepted |
-| [0005](0005-graduated-upload-limits-by-trust.md) | Graduated upload limits by trust | Proposed |
-| [0006](0006-role-based-access-control-via-jwt.md) | Role-based access control via JWT claims | Proposed |
+| [0005](0005-graduated-upload-limits-by-trust.md) | Graduated upload limits by trust | Accepted |
+| [0006](0006-role-based-access-control-via-jwt.md) | Role-based access control via JWT claims | Accepted |

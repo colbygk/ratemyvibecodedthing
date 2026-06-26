@@ -4,29 +4,34 @@
  * are unit-testable without Redis. See ADR-0004.
  */
 
-// New accounts start trusted at 1. No behavior is keyed on this yet (ADR-0004);
-// graduated limits are a separate, still-Proposed decision (ADR-0005).
+import { normalizeRole, ROLES } from "./roles.js";
+
+// New accounts start trusted at 1 (ADR-0004) and as a plain user (ADR-0006).
+// Graduated limits (ADR-0005) read trust; role gates moderation.
 export const DEFAULT_TRUST = 1;
 
 // Flat [field, value, …] list for the signup HSET. Redis wants string values.
-export function newUserFields({ username, pwhash, salt, now, trust = DEFAULT_TRUST }) {
+export function newUserFields({ username, pwhash, salt, now, trust = DEFAULT_TRUST, role = ROLES.USER }) {
   return [
     "pwhash", String(pwhash),
     "salt", String(salt),
     "created", String(now),
     "username", String(username),
     "trust", String(trust),
+    "role", normalizeRole(role),
   ];
 }
 
 // The shape returned to clients (/auth/me, login, signup). `trust` may arrive as
 // a Redis string or be absent on pre-trust accounts → coerce, default to 1.
-export function publicUserShape({ username, following = [], followers = [], trust }) {
+// `role` is the *effective* role (env allowlist already applied by the caller).
+export function publicUserShape({ username, following = [], followers = [], trust, role }) {
   const t = trust === undefined || trust === null || trust === "" ? DEFAULT_TRUST : Number(trust);
   return {
     username,
     following: following || [],
     followers: followers || [],
     trust: Number.isFinite(t) ? t : DEFAULT_TRUST,
+    role: normalizeRole(role),
   };
 }

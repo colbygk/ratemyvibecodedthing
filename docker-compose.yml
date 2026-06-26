@@ -53,6 +53,7 @@ services:
       - "--var=UPSTASH_REDIS_REST_TOKEN:local_dev_token"
       - "--var=JWT_SECRET:local_dev_only_not_a_secret"
       - "--var=ALLOWED_ORIGIN:http://localhost:5173,http://localhost:4173,http://web:5173,http://web-e2e:5173"
+      - "--var=SUPERADMINS:e2eadmin"
     ports:
       - "8787:8787"
     volumes:

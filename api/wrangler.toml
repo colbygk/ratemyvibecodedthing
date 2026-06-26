@@ -7,6 +7,10 @@ compatibility_date = "2024-11-01"
 # has been dropped; localhost stays for dev (vite 5173 / preview 4173).
 [vars]
 ALLOWED_ORIGIN = "https://ratemyvibecodedthing.ai,http://localhost:5173,http://localhost:4173"
+# Comma-separated usernames always treated as super_admin (ADR-0006). Authoritative
+# bootstrap for `cgk`, created by hand before roles existed; takes effect on next
+# login. New deployments also auto-grant the first-ever signup.
+SUPERADMINS = "cgk"
 # Daily usage caps (graceful 429 when exceeded). Defaults live in src/lib/quota.js;
 # uncomment to override. See docs/COST.md.
 # LIMIT_REQUEST = "20000"
